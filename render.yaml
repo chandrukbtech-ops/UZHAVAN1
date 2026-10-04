@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: uzhavan-farm-assistant
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: AGRI_LLM_API_KEY
+        sync: false
+      - key: ONNX_THREADS
+        value: "1"
