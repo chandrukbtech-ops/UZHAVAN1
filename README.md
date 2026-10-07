@@ -69,26 +69,25 @@ but is not an authorization boundary. Firestore rules and enabled authentication
 providers protect the data. Review Firebase's free-tier quotas in the console;
 this app stores no images or large generated content.
 
-## Railway deployment
+## Free Render deployment
 
-`railway.json` configures Railway to build the single-container Dockerfile and
-use `/api/health` as its deployment health check. The container serves both the
-React frontend and FastAPI backend on one HTTPS origin. The ONNX model and its
-metadata are included; the training dataset is not.
+`render.yaml` configures a free Docker web service with `/api/health` as its
+health check. The container serves the React frontend and FastAPI backend on one
+HTTPS origin. The ONNX model and metadata are included; the training dataset is
+not. Render's free service may spin down after inactivity, so the first request
+after a quiet period can take longer.
 
-Connect this repository in Railway and deploy the root service. Add all six
-`VITE_FIREBASE_*` values from your Firebase web-app configuration in the Railway
-service variables before deploying; Railway supplies them during the Docker
-build so sign-in is enabled in the generated frontend. After Railway assigns a
-public domain, add that domain under Firebase Authentication → Settings →
-Authorized domains.
+Create a Blueprint in Render from this GitHub repository. During setup, provide
+the six `VITE_FIREBASE_*` values from your Firebase web-app configuration when
+prompted; Render passes them to the Docker build so account sign-in is enabled
+in the generated frontend. After Render assigns a public domain, add that domain
+under Firebase Authentication → Settings → Authorized domains.
 
-The Qwen model is not included in the app container. Set `OLLAMA_HOST` to an
-Ollama server URL reachable from Railway and make sure that server has the model
-named by `AGRI_LLM_MODEL` (default `qwen2.5:3b`). Do not point this setting at
-`localhost` or an unauthenticated public Ollama endpoint. Without a reachable
-Ollama server, chat uses the built-in local guidance fallback; crop analysis,
-farm, and task features remain available.
+The Qwen model is not included in the app container. Ollama running on your Mac
+is not reachable from Render, and this project does not include a free hosted
+Ollama server. Until `OLLAMA_HOST` points to a secured Ollama server reachable
+from Render, chat uses the built-in local guidance fallback. Crop analysis, farm,
+and task features remain available.
 
 ## Crop and leaf analysis
 
