@@ -19,6 +19,10 @@ from fastapi.staticfiles import StaticFiles
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+OLLAMA_BASE_URL = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+if not OLLAMA_BASE_URL.startswith(("http://", "https://")):
+    OLLAMA_BASE_URL = f"http://{OLLAMA_BASE_URL}"
+AGRI_LLM_MODEL = os.getenv("AGRI_LLM_MODEL", "qwen2.5:3b")
 MODEL_DIR = Path(os.getenv("MODEL_DIR", BASE_DIR / "models"))
 MODEL_PATH = MODEL_DIR / "crop_classifier.onnx"
 METADATA_PATH = MODEL_DIR / "metadata.json"
@@ -143,6 +147,7 @@ class AgriChatRequest(BaseModel):
     question: str
     language: str = "en"
     history: list[AgriChatTurn] = Field(default_factory=list)
+    intent: Literal["general", "disease_care"] = "general"
 
 
 app = FastAPI(title="Uzhavan Crop Identifier", version="0.1.0")
@@ -219,12 +224,16 @@ load_model()
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
+    llm_ready = _ollama_model_available()
     return {
         "status": "ok",
         "model_ready": _session is not None,
         "supported_crops": sorted({label.split("--", 1)[0] for label in _labels}) if _session is not None else [],
         "detail": _model_error,
-        "assistant_mode": "generated" if os.getenv("AGRI_LLM_API_KEY") else "local_notes",
+        "assistant_provider": "ollama",
+        "assistant_model": AGRI_LLM_MODEL,
+        "llm_ready": llm_ready,
+        "assistant_mode": "local_model" if llm_ready else "local_notes",
     }
 
 
@@ -250,7 +259,7 @@ def _find_crop(tokens: set[str]) -> str | None:
     return matches[0] if len(matches) == 1 else None
 
 
-def _generate_grounded_answer(
+def _generate_legacy_cloud_answer(
     question: str,
     language: str,
     context: str,
@@ -260,48 +269,85 @@ def _generate_grounded_answer(
     if not api_key:
         return None
 
+    model = os.getenv("AGRI_LLM_MODEL", "gemini-2.5-flash")
     endpoint = os.getenv(
         "AGRI_LLM_ENDPOINT",
-        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
     )
-    model = os.getenv("AGRI_LLM_MODEL", "gemini-2.5-flash")
     language_name = "Tamil" if language == "ta" else "English"
-    request_payload = {
-        "model": model,
-        "temperature": 0.45,
-        "max_tokens": 280,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are Uzhavan, a careful agricultural field advisor. Answer naturally and specifically in "
-                    f"{language_name}. Use the retrieved notes as guidance, not as a script. Explain practical next steps, "
-                    "ask for missing crop/stage/location details when needed, and never invent pesticide doses, diagnoses, "
-                    "or weather. If uncertain, say what information is needed and recommend local agricultural extension advice. "
-                    "Keep the answer concise, warm, and non-repetitive."
-                ),
-            },
-        ],
-    }
-    request_payload["messages"].extend([
-        {"role": turn.role, "content": turn.content[:2000]}
-        for turn in (history or [])[-8:]
-    ])
-    request_payload["messages"].append({
-        "role": "user",
-        "content": f"Retrieved farming notes:\n{context}\n\nFarmer question:\n{question}",
-    })
-    payload = json.dumps(request_payload).encode("utf-8")
-    request = Request(
-        endpoint,
-        data=payload,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        method="POST",
+    system_prompt = (
+        "You are Uzhavan, a careful agricultural field advisor. Answer naturally and specifically in "
+        f"{language_name}. Use the retrieved notes as guidance, not as a script. Explain practical next steps, "
+        "ask for missing crop/stage/location details when needed, and never invent pesticide doses, "
+        "diagnoses, or weather. If uncertain, say what information is needed and recommend local agricultural extension advice. "
+        "Keep the answer concise, warm, and non-repetitive."
     )
+
+    is_openai_compatible = "/openai/" in endpoint.lower() or "/chat/completions" in endpoint.lower()
+    if is_openai_compatible:
+        request_payload = {
+            "model": model,
+            "temperature": 0.45,
+            "max_tokens": 280,
+            "messages": [{"role": "system", "content": system_prompt}],
+        }
+        request_payload["messages"].extend([
+            {"role": turn.role, "content": turn.content[:2000]}
+            for turn in (history or [])[-8:]
+        ])
+        request_payload["messages"].append({
+            "role": "user",
+            "content": f"Retrieved farming notes:\n{context}\n\nFarmer question:\n{question}",
+        })
+        payload = json.dumps(request_payload).encode("utf-8")
+        request = Request(
+            endpoint,
+            data=payload,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+    else:
+        request_url = endpoint
+        if "models/" not in request_url and not request_url.endswith(":generateContent"):
+            request_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        separator = "&" if "?" in request_url else "?"
+        if "key=" not in request_url:
+            request_url = f"{request_url}{separator}key={api_key}"
+
+        contents: list[dict[str, Any]] = []
+        for turn in (history or [])[-8:]:
+            contents.append({
+                "role": "user" if turn.role == "user" else "model",
+                "parts": [{"text": turn.content[:2000]}],
+            })
+        contents.append({
+            "role": "user",
+            "parts": [{"text": f"Retrieved farming notes:\n{context}\n\nFarmer question:\n{question}"}],
+        })
+        request_payload = {
+            "system_instruction": {"parts": [{"text": system_prompt}]},
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 0.45,
+                "maxOutputTokens": 280,
+            },
+        }
+        payload = json.dumps(request_payload).encode("utf-8")
+        request = Request(request_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+
     try:
         with urlopen(request, timeout=18) as response:
             result = json.loads(response.read().decode("utf-8"))
-        answer = result["choices"][0]["message"]["content"]
+
+        if is_openai_compatible:
+            answer = result["choices"][0]["message"]["content"]
+        else:
+            candidates = result.get("candidates") or []
+            if not candidates:
+                raise ValueError("The LLM provider returned no candidates.")
+            parts = candidates[0].get("content", {}).get("parts", [])
+            answer = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+
         if not isinstance(answer, str) or not answer.strip():
             raise ValueError("The LLM provider returned an empty answer.")
         return answer.strip()
@@ -325,10 +371,110 @@ def _generate_grounded_answer(
         return None
 
 
+def _ollama_model_available() -> bool:
+    request = Request(f"{OLLAMA_BASE_URL}/api/tags", method="GET")
+    try:
+        with urlopen(request, timeout=1.5) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        models = result.get("models", [])
+        return any(
+            isinstance(model, dict) and model.get("name") == AGRI_LLM_MODEL
+            for model in models
+        )
+    except (OSError, TimeoutError, ValueError, TypeError, AttributeError):
+        return False
+
+
+def _generate_grounded_answer(
+    question: str,
+    language: str,
+    context: str,
+    history: list[AgriChatTurn] | None = None,
+    intent: str = "general",
+) -> str | None:
+    language_name = "Tamil" if language == "ta" else "English"
+    system_prompt = (
+        "You are Uzhavan, a careful agricultural field advisor running locally. "
+        f"Answer naturally and specifically in {language_name}. Use the supplied Uzhavan farming knowledge "
+        "as your primary source. Explain practical next steps, ask for missing crop, growth-stage, or location "
+        "details when needed, and never invent pesticide doses, diagnoses, or current weather. If uncertain, "
+        "say what information is needed and recommend local agricultural extension advice. Keep the answer concise."
+    )
+    if intent == "disease_care":
+        system_prompt += (
+            " This is a disease-care request. Do not claim a definite diagnosis from text alone. Structure the reply "
+            "with these four sections in the requested language: Possible reasons; Precautions to take now; "
+            "Ways to reduce further spread; What to observe or ask a local agriculture expert. Give only general, "
+            "low-risk steps. Do not prescribe pesticide products, mixtures, or dosage."
+        )
+    messages = [{
+        "role": "system",
+        "content": system_prompt,
+    }]
+    messages.extend([
+        {"role": turn.role, "content": turn.content[:2000]}
+        for turn in (history or [])[-8:]
+    ])
+    messages.append({
+        "role": "user",
+        "content": f"Uzhavan farming knowledge:\n{context}\n\nFarmer question:\n{question}",
+    })
+    request_payload = {
+        "model": AGRI_LLM_MODEL,
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": 0.45, "num_predict": 280},
+    }
+    request = Request(
+        f"{OLLAMA_BASE_URL}/api/chat",
+        data=json.dumps(request_payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=120) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        answer = result["message"]["content"]
+        if not isinstance(answer, str) or not answer.strip():
+            raise ValueError("Ollama returned an empty answer.")
+        return answer.strip()
+    except HTTPError as exc:
+        try:
+            provider_message = json.loads(exc.read().decode("utf-8")).get("error", "")
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            provider_message = ""
+        logger.warning(
+            "Local Ollama request rejected (HTTP %s): %s",
+            exc.code,
+            str(provider_message or exc.reason)[:300],
+        )
+        return None
+    except (OSError, TimeoutError, ValueError, KeyError, IndexError, TypeError) as exc:
+        logger.warning("Local Ollama request failed; using local notes (%s).", type(exc).__name__)
+        return None
+
+
+def _disease_care_fallback(language: str) -> str:
+    if language == "ta":
+        return (
+            "சாத்தியமான காரணங்கள்: ஈரமான இலைகள், காற்றோட்டமின்மை, நீர் தேக்கம், பாதிக்கப்பட்ட செடிகள் அல்லது பூச்சி சேதம் சில நோய்களைப் பரப்பலாம்; அறிகுறி மட்டும் வைத்து நோயை உறுதிப்படுத்த முடியாது.\n\n"
+            "இப்போது செய்ய வேண்டிய முன்னெச்சரிக்கைகள்: பாதிக்கப்பட்ட செடிகளைத் தொட்ட பின் கருவிகளைச் சுத்தம் செய்யுங்கள்; ஆரோக்கியமான செடிகளைப் பார்க்கும் முன் பாதிக்கப்பட்ட பகுதிகளை கையாள வேண்டாம். இலைகள் நீண்ட நேரம் ஈரமாக இருக்காமல் பார்த்து, வடிகால் மற்றும் காற்றோட்டத்தை மேம்படுத்துங்கள்.\n\n"
+            "பரவலைக் குறைக்க: அறிகுறி எந்த செடிகளில், எந்த இலைகளில், எவ்வளவு வேகமாக வருகிறது என்பதைப் பதிவு செய்து தெளிவான படங்களை எடுக்கவும். பாதிக்கப்பட்ட பகுதிகளை அகற்றுவது உள்ளூர் ஆலோசனைக்கு ஏற்ப மட்டுமே செய்யுங்கள்; மருந்து அல்லது அளவை ஊகித்து பயன்படுத்த வேண்டாம்.\n\n"
+            "அடுத்ததாக: பயிர் நிலை, மாவட்டம், அறிகுறிகள் எப்போது தொடங்கின, சமீபத்திய மழை அல்லது தெளிப்பு ஆகியவற்றைச் சொல்லி உள்ளூர் வேளாண் அலுவலரிடம் உறுதிப்படுத்துங்கள்."
+        )
+    return (
+        "Possible reasons: Prolonged leaf wetness, poor airflow, standing water, infected plants, or pest damage can contribute to some crop diseases. Symptoms alone are not enough to confirm the cause.\n\n"
+        "Precautions to take now: Clean tools after handling affected plants, avoid moving from affected to healthy plants without cleaning, improve airflow and drainage, and avoid keeping foliage wet for long periods.\n\n"
+        "Ways to reduce further spread: Record which plants and leaves are affected, how quickly symptoms appear, and take clear photos. Remove plant parts only if local guidance recommends it. Do not guess or apply pesticide products or doses.\n\n"
+        "What to do next: Ask a local agriculture expert to confirm the cause. Share the crop stage, district, when symptoms began, and recent rain or spraying."
+    )
+
+
 def _retrieve_farm_answer(
     question: str,
     language: str = "en",
     history: list[AgriChatTurn] | None = None,
+    intent: str = "general",
 ) -> dict[str, Any]:
     tokens = _tokens(question)
     requested_crop = _find_crop(tokens)
@@ -367,21 +513,30 @@ def _retrieve_farm_answer(
             secondary_answer = second["ta"] if language == "ta" else second["answer"]
             answer = f"{answer}\n\nAlso relevant: {secondary_answer}" if language != "ta" else f"{answer}\n\nமேலும்: {secondary_answer}"
             retrieved_context = f"{retrieved_context}\n\n{secondary_answer}"
-        generated_answer = _generate_grounded_answer(question, language, retrieved_context, history)
+        generated_answer = _generate_grounded_answer(question, language, retrieved_context, history, intent)
         if generated_answer:
             answer = generated_answer
-            assistant_mode = "generated"
+            assistant_mode = "local_model"
         else:
             assistant_mode = "local_notes"
+            if intent == "disease_care":
+                answer = _disease_care_fallback(language)
+                source = "disease-care"
+                confidence = 0.2
     else:
         context = (
             "No direct local note matched. Do not invent time-sensitive prices, pesticide choices, rates, or diagnoses. "
             "Answer general agronomy questions cautiously and ask for the crop, district, and stage when useful."
         )
-        generated_answer = _generate_grounded_answer(question, language, context, history)
+        generated_answer = _generate_grounded_answer(question, language, context, history, intent)
         if generated_answer:
             answer = generated_answer
-            assistant_mode = "generated"
+            assistant_mode = "local_model"
+        elif intent == "disease_care":
+            assistant_mode = "local_notes"
+            answer = _disease_care_fallback(language)
+            source = "disease-care"
+            confidence = 0.2
         elif "market" in requested_topics:
             assistant_mode = "local_notes"
             answer = (
@@ -423,7 +578,7 @@ def agri_chat(payload: AgriChatRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Please ask a farming question.")
 
     language = "ta" if payload.language.lower().startswith("ta") or any("\u0b80" <= char <= "\u0bff" for char in question) else "en"
-    result = _retrieve_farm_answer(question, language, payload.history)
+    result = _retrieve_farm_answer(question, language, payload.history, payload.intent)
     return {
         "status": "ok",
         "question": question,

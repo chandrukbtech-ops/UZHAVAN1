@@ -9,6 +9,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['uzhavan-mark.svg'],
+      workbox: {
+        globIgnores: ['**/firebase-*.js'],
+      },
       manifest: {
         name: 'Uzhavan Farm Assistant',
         short_name: 'Uzhavan',

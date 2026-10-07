@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { User } from 'firebase/auth'
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -31,6 +32,7 @@ import {
   Wind,
   X,
 } from 'lucide-react'
+import { isFirebaseConfigured } from './firebase-config'
 import './App.css'
 
 type Language = 'en' | 'ta'
@@ -132,11 +134,11 @@ const cropCareGuides: Record<string, string> = {
 
 const tabItems: Array<{ id: Tab; label: string; icon: typeof House }> = [
   { id: 'home', label: 'Home', icon: House },
-  { id: 'scan', label: 'Leaf scan', icon: ScanLine },
-  { id: 'assistant', label: 'AI advisor', icon: MessageCircle },
+  { id: 'scan', label: 'Scan', icon: ScanLine },
+  { id: 'assistant', label: 'Advisor', icon: MessageCircle },
   { id: 'weather', label: 'Weather', icon: CloudSun },
-  { id: 'farm', label: 'My farm', icon: Tractor },
-  { id: 'reminders', label: 'Reminders', icon: Bell },
+  { id: 'farm', label: 'Farm', icon: Tractor },
+  { id: 'reminders', label: 'Tasks', icon: Bell },
 ]
 
 function localDateTime(offsetHours = 24) {
@@ -160,7 +162,7 @@ const copy = {
   en: {
     kicker: 'CROP IDENTIFICATION',
     title: 'What’s growing?',
-    subtitle: 'Show us a leaf. We’ll help you identify the crop.',
+    subtitle: 'Upload a clear leaf photo to identify the crop.',
     modelReady: 'Model ready',
     modelMissing: 'Model not trained yet',
     serviceOffline: 'Service offline',
@@ -183,26 +185,29 @@ const copy = {
     notSureHint: 'Try a sharper photo with one leaf in focus.',
     confidence: 'Model confidence',
     supported: 'SUPPORTED CROPS',
-    modelNote: 'The crop model is not installed yet. Train it with labeled crop photos to enable identification.',
-    apiOfflineNote: 'The crop service is not running. Start the API and reload this page.',
-    cameraDenied: 'Camera access is unavailable. Allow camera permission or upload a photo instead.',
+    modelNote: 'Crop model is not ready. Train it with labeled leaf photos.',
+    apiOfflineNote: 'Crop service is offline. Start the API and refresh.',
+    cameraDenied: 'Camera unavailable. Allow access or upload a photo.',
     uploadError: 'Choose a JPG, PNG, or WebP image under 12 MB.',
     apiError: 'Could not reach the crop service. Check that the API is running.',
     retake: 'Retake',
-    privacy: 'Photos are analyzed for this result and are not saved.',
-    assistantTitle: 'Agri assistant',
-    assistantSubtitle: 'Ask anything about irrigation, pests, soil, nutrition, or crop care.',
-    assistantPlaceholder: 'Ask about rice, tomato, soil moisture, fertilizer, or pest control…',
+    privacy: 'Photos are analyzed but never saved.',
+    assistantTitle: 'Farm advisor',
+    assistantSubtitle: 'Ask about crops, pests, soil, or irrigation.',
+    assistantPlaceholder: 'Ask a question about your field…',
     send: 'Send',
+    diseaseLoading: 'Preparing precautions…',
+    diseaseResultTitle: 'Possible causes and precautions',
+    diseaseDisclaimer: 'This is not a confirmed diagnosis. Check with your local agriculture office before treatment.',
     listening: 'Listening…',
     voiceNote: 'Voice support is ready',
     voiceUnavailable: 'Voice input is not supported in this browser.',
-    assistantReady: 'I am your field advisor. Ask me anything about crops, disease, soil, and irrigation.',
+    assistantReady: 'Hello. Ask me about crop health, soil, pests, or irrigation.',
   },
   ta: {
     kicker: 'பயிர் அடையாளம்',
     title: 'என்ன பயிர் இது?',
-    subtitle: 'ஒரு இலையைக் காட்டுங்கள். பயிரை அடையாளம் காண உதவுகிறோம்.',
+    subtitle: 'பயிரை அடையாளம் காண தெளிவான இலைப் படத்தைப் பதிவேற்றுங்கள்.',
     modelReady: 'மாதிரி தயார்',
     modelMissing: 'மாதிரி இன்னும் பயிற்சி பெறவில்லை',
     serviceOffline: 'சேவை இயங்கவில்லை',
@@ -225,21 +230,24 @@ const copy = {
     notSureHint: 'ஒரு இலையை மட்டும் தெளிவாகப் படம் எடுத்து முயற்சிக்கவும்.',
     confidence: 'மாதிரியின் நம்பிக்கை',
     supported: 'ஆதரிக்கப்படும் பயிர்கள்',
-    modelNote: 'பயிர் மாதிரி இன்னும் நிறுவப்படவில்லை. அடையாளம் காண பெயரிடப்பட்ட பயிர்ப் படங்களைக் கொண்டு பயிற்சி அளிக்கவும்.',
-    apiOfflineNote: 'பயிர் சேவை இயங்கவில்லை. API-ஐத் தொடங்கி இந்தப் பக்கத்தை மீண்டும் ஏற்றவும்.',
-    cameraDenied: 'கேமராவைப் பயன்படுத்த முடியவில்லை. அனுமதி வழங்கவும் அல்லது படத்தைப் பதிவேற்றவும்.',
+    modelNote: 'பயிர் மாதிரி தயாராக இல்லை. பெயரிடப்பட்ட இலைப் படங்களைக் கொண்டு பயிற்சி அளிக்கவும்.',
+    apiOfflineNote: 'பயிர் சேவை இயங்கவில்லை. API-ஐத் தொடங்கி மீண்டும் ஏற்றவும்.',
+    cameraDenied: 'கேமரா கிடைக்கவில்லை. அனுமதி வழங்கவும் அல்லது படத்தைப் பதிவேற்றவும்.',
     uploadError: '12 MB-க்கு குறைவான JPG, PNG அல்லது WebP படத்தைத் தேர்ந்தெடுக்கவும்.',
     apiError: 'பயிர் சேவையை அணுக முடியவில்லை. API இயங்குகிறதா எனச் சரிபார்க்கவும்.',
     retake: 'மீண்டும் எடு',
-    privacy: 'முடிவுக்காக மட்டும் படம் ஆய்வு செய்யப்படும்; சேமிக்கப்படாது.',
-    assistantTitle: 'விவசாய உதவியாளர்',
-    assistantSubtitle: 'மழை, பூச்சி, மண், உரம், நீர்ப்பாசனம் பற்றி எதையும் கேளுங்கள்.',
-    assistantPlaceholder: 'நெல், தக்காளி, மண் ஈரம், உரம் அல்லது பூச்சி கட்டுப்பாடு பற்றி கேளுங்கள்…',
+    privacy: 'படங்கள் ஆய்வு செய்யப்படும்; சேமிக்கப்படாது.',
+    assistantTitle: 'விவசாய ஆலோசகர்',
+    assistantSubtitle: 'பயிர், பூச்சி, மண் அல்லது பாசனம் பற்றி கேளுங்கள்.',
+    assistantPlaceholder: 'வயல் தொடர்பான கேள்வியைக் கேளுங்கள்…',
     send: 'அனுப்பு',
+    diseaseLoading: 'முன்னெச்சரிக்கைகளைத் தயாரிக்கிறது…',
+    diseaseResultTitle: 'சாத்தியமான காரணங்களும் முன்னெச்சரிக்கைகளும்',
+    diseaseDisclaimer: 'இது உறுதியான நோய் கண்டறிதல் அல்ல. சிகிச்சைக்கு முன் உள்ளூர் வேளாண் அலுவலரை அணுகவும்.',
     listening: 'கேக்கிறேன்…',
     voiceNote: 'குரல் ஆதரவு தயாராக உள்ளது',
     voiceUnavailable: 'இந்த உலாவியில் குரல் உள்ளீடு கிடைக்கவில்லை.',
-    assistantReady: 'நான் உங்கள் வயல் ஆலோசகர். பயிர், நோய், மண் மற்றும் நீர்ப்பாசனம் பற்றி கேளுங்கள்.',
+    assistantReady: 'வணக்கம். பயிர், மண், பூச்சி அல்லது பாசனம் பற்றி கேளுங்கள்.',
   },
 } satisfies Record<Language, Record<string, string>>
 
@@ -259,6 +267,9 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [prediction, setPrediction] = useState<Prediction | null>(null)
   const [chatInput, setChatInput] = useState('')
+  const [scanDiseaseAnswer, setScanDiseaseAnswer] = useState('')
+  const [scanDiseaseLoading, setScanDiseaseLoading] = useState(false)
+  const [scanDiseaseError, setScanDiseaseError] = useState('')
   const t = copy[language]
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
     { role: 'assistant', text: t.assistantReady },
@@ -266,7 +277,7 @@ function App() {
   const [chatLoading, setChatLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
-  const [assistantMode, setAssistantMode] = useState<'generated' | 'local_notes'>('local_notes')
+  const [assistantMode, setAssistantMode] = useState<'local_model' | 'local_notes'>('local_notes')
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null)
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [weatherError, setWeatherError] = useState('')
@@ -279,7 +290,23 @@ function App() {
       return { farmName: '', district: '', area: '', soil: 'loam', water: 'reliable' }
     }
   })
-  const [recommendations, setRecommendations] = useState<string[]>([])
+  const [user, setUser] = useState<User | null>(null)
+  const [authReady, setAuthReady] = useState(!isFirebaseConfigured)
+  const [showAuth, setShowAuth] = useState(false)
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [storageReady, setStorageReady] = useState(!isFirebaseConfigured)
+  const [storageError, setStorageError] = useState('')
+  const [recommendations, setRecommendations] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('uzhavan-farm-recommendations') ?? '[]') as string[]
+    } catch {
+      return []
+    }
+  })
   const [reminders, setReminders] = useState<FarmReminder[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('uzhavan-farm-reminders') ?? '[]') as FarmReminder[]
@@ -302,7 +329,7 @@ function App() {
         if (active) {
           setApiOnline(true)
           setModelReady(health.model_ready === true)
-          setAssistantMode(health.assistant_mode === 'generated' ? 'generated' : 'local_notes')
+          setAssistantMode(health.assistant_mode === 'local_model' ? 'local_model' : 'local_notes')
           if (health.model_ready && Array.isArray(health.supported_crops)) {
             setSupportedCrops(health.supported_crops)
           }
@@ -326,12 +353,116 @@ function App() {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('uzhavan-farm-profile', JSON.stringify(farmProfile))
-  }, [farmProfile])
+    if (!isFirebaseConfigured) return
+    let active = true
+    let generation = 0
+    let stopReminderListener: (() => void) | undefined
+    let stopAuthListener: (() => void) | undefined
+
+    void import('./firebase').then(({ firebaseAuth, firebaseDb, authApi, firestoreApi }) => {
+      if (!active) return
+      if (!firebaseAuth || !firebaseDb) {
+        setStorageError('Firebase is configured incompletely. Check the project settings.')
+        setStorageReady(true)
+        setAuthReady(true)
+        return
+      }
+
+      stopAuthListener = authApi.onAuthStateChanged(firebaseAuth, async (nextUser) => {
+        const currentGeneration = ++generation
+        stopReminderListener?.()
+        setStorageReady(false)
+        setStorageError('')
+        setUser(nextUser)
+
+        if (!nextUser) {
+          try {
+            const storedProfile = localStorage.getItem('uzhavan-farm-profile')
+            const storedReminders = localStorage.getItem('uzhavan-farm-reminders')
+            const storedRecommendations = localStorage.getItem('uzhavan-farm-recommendations')
+            setFarmProfile(storedProfile
+              ? { farmName: '', district: '', area: '', soil: 'loam', water: 'reliable', ...JSON.parse(storedProfile) as Partial<FarmerProfile> }
+              : { farmName: '', district: '', area: '', soil: 'loam', water: 'reliable' })
+            setReminders(storedReminders ? JSON.parse(storedReminders) as FarmReminder[] : [])
+            setRecommendations(storedRecommendations ? JSON.parse(storedRecommendations) as string[] : [])
+            setStorageReady(true)
+          } catch {
+            setStorageError('Could not load farm data saved on this device.')
+          } finally {
+            setAuthReady(true)
+          }
+          return
+        }
+
+        try {
+          const profileSnapshot = await firestoreApi.getDoc(firestoreApi.doc(firebaseDb, 'users', nextUser.uid, 'private', 'farm'))
+          if (currentGeneration !== generation) return
+          if (profileSnapshot.exists()) {
+            const profileData = profileSnapshot.data()
+            const { recommendations: savedRecommendations, ...savedProfile } = profileData
+            setFarmProfile((current) => ({ ...current, ...savedProfile as Partial<FarmerProfile> }))
+            setRecommendations(Array.isArray(savedRecommendations) ? savedRecommendations as string[] : [])
+          } else {
+            setFarmProfile({ farmName: '', district: '', area: '', soil: 'loam', water: 'reliable' })
+            setRecommendations([])
+          }
+          stopReminderListener = firestoreApi.onSnapshot(
+            firestoreApi.collection(firebaseDb, 'users', nextUser.uid, 'reminders'),
+            (snapshot) => {
+              setReminders(snapshot.docs.map((reminder) => ({ id: reminder.id, ...reminder.data() }) as FarmReminder))
+              setStorageReady(true)
+            },
+            () => {
+              setStorageError('Could not sync your tasks. Check your Firebase Firestore rules.')
+              setStorageReady(true)
+            },
+          )
+        } catch {
+          if (currentGeneration === generation) {
+            setStorageError('Could not load your farm data from Firebase.')
+            setStorageReady(true)
+          }
+        } finally {
+          setAuthReady(true)
+        }
+      })
+    }).catch(() => {
+      if (active) {
+        setStorageError('Could not load Firebase. Check your connection and app configuration.')
+        setStorageReady(true)
+        setAuthReady(true)
+      }
+    })
+
+    return () => {
+      active = false
+      generation += 1
+      stopReminderListener?.()
+      stopAuthListener?.()
+    }
+  }, [])
 
   useEffect(() => {
+    if (!authReady || !storageReady) return
+    if (!user) {
+      localStorage.setItem('uzhavan-farm-profile', JSON.stringify(farmProfile))
+      localStorage.setItem('uzhavan-farm-recommendations', JSON.stringify(recommendations))
+      return
+    }
+    const saveTimer = window.setTimeout(() => {
+      void import('./firebase').then(({ firebaseDb, firestoreApi }) => {
+        if (!firebaseDb) throw new Error('Firebase Firestore is unavailable.')
+        return firestoreApi.setDoc(firestoreApi.doc(firebaseDb, 'users', user.uid, 'private', 'farm'), { ...farmProfile, recommendations })
+      }).then(() => setStorageError(''))
+        .catch(() => setStorageError('Could not save your farm details. Check your Firestore rules.'))
+    }, 700)
+    return () => window.clearTimeout(saveTimer)
+  }, [authReady, farmProfile, recommendations, storageReady, user])
+
+  useEffect(() => {
+    if (!authReady || !storageReady || user) return
     localStorage.setItem('uzhavan-farm-reminders', JSON.stringify(reminders))
-  }, [reminders])
+  }, [authReady, reminders, storageReady, user])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -342,9 +473,18 @@ function App() {
       }
       const dueIds = new Set(due.map((reminder) => reminder.id))
       setReminders((current) => current.map((reminder) => dueIds.has(reminder.id) ? { ...reminder, notified: true } : reminder))
+      if (user) {
+        void import('./firebase').then(({ firebaseDb, firestoreApi }) => {
+          if (!firebaseDb) throw new Error('Firebase Firestore is unavailable.')
+          return Promise.all(due.map((reminder) => firestoreApi.setDoc(
+            firestoreApi.doc(firebaseDb, 'users', user.uid, 'reminders', reminder.id),
+            { ...reminder, notified: true },
+          )))
+        }).catch(() => setStorageError('Could not sync reminder status to Firebase.'))
+      }
     }, 30000)
     return () => window.clearInterval(interval)
-  }, [reminders])
+  }, [reminders, user])
 
   useEffect(() => {
     if (!previewUrl) return
@@ -383,6 +523,61 @@ function App() {
       stream?.getTracks().forEach((track) => track.stop())
     }
   }, [cameraOpen, facingMode])
+
+  async function submitAuthentication(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!isFirebaseConfigured) {
+      setAuthError('Firebase is not configured. Add the project settings to .env.local and restart the app.')
+      return
+    }
+
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const { firebaseAuth, authApi } = await import('./firebase')
+      if (!firebaseAuth) throw new Error('Firebase Authentication is unavailable.')
+      if (authMode === 'signup') {
+        await authApi.createUserWithEmailAndPassword(firebaseAuth, authEmail.trim(), authPassword)
+      } else {
+        await authApi.signInWithEmailAndPassword(firebaseAuth, authEmail.trim(), authPassword)
+      }
+      setShowAuth(false)
+      setAuthPassword('')
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Could not sign in. Please try again.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  async function signInWithGoogle() {
+    if (!isFirebaseConfigured) {
+      setAuthError('Firebase is not configured. Add the project settings to .env.local and restart the app.')
+      return
+    }
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const { firebaseAuth, authApi } = await import('./firebase')
+      if (!firebaseAuth) throw new Error('Firebase Authentication is unavailable.')
+      await authApi.signInWithPopup(firebaseAuth, new authApi.GoogleAuthProvider())
+      setShowAuth(false)
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Could not sign in with Google.')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  async function signOutUser() {
+    try {
+      const { firebaseAuth, authApi } = await import('./firebase')
+      if (!firebaseAuth) throw new Error('Firebase Authentication is unavailable.')
+      await authApi.signOut(firebaseAuth)
+    } catch {
+      setStorageError('Could not sign out. Please try again.')
+    }
+  }
 
   function acceptPhoto(file: File | undefined) {
     if (!file) return
@@ -436,15 +631,18 @@ function App() {
     const utterance = new SpeechSynthesisUtterance(text)
     const targetLanguage = /[\u0b80-\u0bff]/.test(text) ? 'ta-IN' : language === 'ta' ? 'ta-IN' : 'en'
     utterance.lang = targetLanguage
-    utterance.rate = 0.96
-    utterance.pitch = 0.82
-    utterance.volume = 1
-    const maleVoice = window.speechSynthesis.getVoices().find((voice) => {
-      const langMatches = targetLanguage === 'ta-IN' ? voice.lang.toLowerCase().startsWith('ta') : voice.lang.toLowerCase().startsWith('en')
-      return langMatches && /male|ravi|david|mark|daniel|george|valluvar/i.test(voice.name)
-    })
-    const languageVoice = window.speechSynthesis.getVoices().find((voice) => voice.lang.toLowerCase().startsWith(targetLanguage.slice(0, 2)))
-    utterance.voice = maleVoice ?? languageVoice ?? null
+    utterance.rate = 0.92
+    utterance.pitch = 1
+    utterance.volume = 0.82
+    const languageVoices = window.speechSynthesis.getVoices()
+      .filter((voice) => voice.lang.toLowerCase().startsWith(targetLanguage.slice(0, 2)))
+    const naturalVoice = languageVoices.find((voice) =>
+      /natural|premium|enhanced|neural|samantha|ava|karen|moira|tessa/i.test(voice.name),
+    )
+    const exactLanguageVoice = languageVoices.find((voice) =>
+      voice.lang.toLowerCase() === targetLanguage.toLowerCase(),
+    )
+    utterance.voice = naturalVoice ?? exactLanguageVoice ?? languageVoices[0] ?? null
     utterance.onstart = () => setIsSpeaking(true)
     utterance.onend = () => setIsSpeaking(false)
     utterance.onerror = () => setIsSpeaking(false)
@@ -479,7 +677,7 @@ function App() {
       if (!response.ok) throw new Error(body?.detail ?? t.apiError)
 
       const assistantText = body.answer || (language === 'ta' ? 'உங்கள் கேள்விக்கு விரைவான ஆலோசனை வழங்குகிறேன்.' : 'Here is a practical field answer.')
-      setAssistantMode(body.assistant_mode === 'generated' ? 'generated' : 'local_notes')
+      setAssistantMode(body.assistant_mode === 'local_model' ? 'local_model' : 'local_notes')
       setChatMessages((current) => [...current, { role: 'assistant', text: assistantText }])
       speakAnswer(body.voice_text || assistantText)
     } catch (requestError) {
@@ -488,6 +686,25 @@ function App() {
     } finally {
       setChatLoading(false)
     }
+  }
+
+  async function fetchDiseaseCare(cropId: string, symptoms: string): Promise<string> {
+    const response = await fetch('/api/agri-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: `Crop: ${cropId}. Observed disease or symptoms: ${symptoms}.`,
+          language,
+          intent: 'disease_care',
+        }),
+      })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body?.detail ?? t.apiError)
+    if (typeof body.answer !== 'string' || !body.answer.trim()) {
+      throw new Error(language === 'ta' ? 'ஆலோசனையைப் பெற முடியவில்லை. மீண்டும் முயற்சிக்கவும்.' : 'No guidance was returned. Please try again.')
+    }
+    setAssistantMode(body.assistant_mode === 'local_model' ? 'local_model' : 'local_notes')
+    return body.answer
   }
 
   function startVoiceInput() {
@@ -538,6 +755,9 @@ function App() {
     setAnalyzing(true)
     setError(null)
     setPrediction(null)
+    setScanDiseaseAnswer('')
+    setScanDiseaseError('')
+    setScanDiseaseLoading(false)
     const formData = new FormData()
     formData.append('image', photo)
 
@@ -549,7 +769,19 @@ function App() {
         const detail = typeof body.detail === 'string' ? body.detail : null
         throw new Error(code === 'MODEL_NOT_READY' ? t.modelNote : detail ?? t.apiError)
       }
-      setPrediction(body as Prediction)
+      const result = body as Prediction
+      setPrediction(result)
+      if (result.status === 'identified' && result.disease && result.crop) {
+        setScanDiseaseLoading(true)
+        try {
+          const advice = await fetchDiseaseCare(result.crop, `Leaf scan detected ${result.disease}.`)
+          setScanDiseaseAnswer(advice)
+        } catch (requestError) {
+          setScanDiseaseError(requestError instanceof Error ? requestError.message : t.apiError)
+        } finally {
+          setScanDiseaseLoading(false)
+        }
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t.apiError)
     } finally {
@@ -621,12 +853,56 @@ function App() {
     if ('Notification' in window && Notification.permission === 'default') {
       await Notification.requestPermission()
     }
-    setReminders((current) => [{
+    const reminder: FarmReminder = {
       id: crypto.randomUUID(), crop: reminderCrop, task: reminderTask,
       due: new Date(reminderDue).toISOString(), note: reminderNote.trim(), done: false, notified: false,
-    }, ...current])
+    }
+    if (user) {
+      try {
+        const { firebaseDb, firestoreApi } = await import('./firebase')
+        if (!firebaseDb) throw new Error('Firebase Firestore is unavailable.')
+        await firestoreApi.setDoc(firestoreApi.doc(firebaseDb, 'users', user.uid, 'reminders', reminder.id), reminder)
+        setStorageError('')
+      } catch {
+        setStorageError('Could not save this task to Firebase. Check your Firestore rules.')
+        return
+      }
+    } else {
+      setReminders((current) => [reminder, ...current])
+    }
     setReminderNote('')
     setReminderDue(localDateTime())
+  }
+
+  async function toggleReminder(reminder: FarmReminder) {
+    const updatedReminder = { ...reminder, done: !reminder.done }
+    if (user) {
+      try {
+        const { firebaseDb, firestoreApi } = await import('./firebase')
+        if (!firebaseDb) throw new Error('Firebase Firestore is unavailable.')
+        await firestoreApi.setDoc(firestoreApi.doc(firebaseDb, 'users', user.uid, 'reminders', reminder.id), updatedReminder)
+        setStorageError('')
+      } catch {
+        setStorageError('Could not update this task in Firebase.')
+      }
+      return
+    }
+    setReminders((current) => current.map((item) => item.id === reminder.id ? updatedReminder : item))
+  }
+
+  async function deleteReminder(reminderId: string) {
+    if (user) {
+      try {
+        const { firebaseDb, firestoreApi } = await import('./firebase')
+        if (!firebaseDb) throw new Error('Firebase Firestore is unavailable.')
+        await firestoreApi.deleteDoc(firestoreApi.doc(firebaseDb, 'users', user.uid, 'reminders', reminderId))
+        setStorageError('')
+      } catch {
+        setStorageError('Could not delete this task from Firebase.')
+      }
+      return
+    }
+    setReminders((current) => current.filter((item) => item.id !== reminderId))
   }
 
   const crop = prediction?.crop
@@ -639,8 +915,16 @@ function App() {
   const diseaseLabel = prediction?.disease?.replaceAll('-', ' ') ?? null
   const upcomingReminders = reminders.filter((reminder) => !reminder.done).sort((first, second) => first.due.localeCompare(second.due))
   const activeTitle = ({
-    home: 'Field dashboard', scan: 'Leaf health check', assistant: 'Ask your farm advisor',
-    weather: 'Weather for your field', farm: 'Your farm profile', reminders: 'Farm reminders',
+    home: 'Your farm', scan: 'Leaf health', assistant: 'Ask Uzhavan',
+    weather: 'Local weather', farm: 'Farm profile', reminders: 'Field tasks',
+  } satisfies Record<Tab, string>)[activeTab]
+  const activeSubtitle = ({
+    home: 'Field guidance, weather, and daily tasks.',
+    scan: 'Identify a crop and check leaf health.',
+    assistant: 'Practical answers for everyday field questions.',
+    weather: 'Local conditions and a five-day forecast.',
+    farm: 'Save field details for crop suggestions.',
+    reminders: 'Schedule and track important farm work.',
   } satisfies Record<Tab, string>)[activeTab]
 
   useEffect(() => {
@@ -664,6 +948,15 @@ function App() {
             <span className="state-dot" />
             <span>{!apiOnline ? t.serviceOffline : modelReady ? t.modelReady : t.modelMissing}</span>
           </span>
+          {user ? (
+            <button className="account-button" type="button" onClick={() => void signOutUser()} title={`Sign out ${user.email ?? ''}`}>
+              {user.email?.split('@')[0] || 'Account'}
+            </button>
+          ) : (
+            <button className="account-button" type="button" onClick={() => { setAuthError(''); setShowAuth(true) }}>
+              Sign in
+            </button>
+          )}
           <div className="language-switch" role="group" aria-label="Language">
             <button
               type="button"
@@ -689,12 +982,45 @@ function App() {
         ))}
       </nav>
 
+      {storageError && <div className="storage-notice" role="alert">{storageError}</div>}
+
+      {showAuth && <div className="auth-backdrop" role="presentation" onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setShowAuth(false)
+      }}>
+        <section className="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+          <button className="auth-close" type="button" onClick={() => setShowAuth(false)} aria-label="Close sign in"><X size={18} /></button>
+          <p className="eyebrow"><span className="eyebrow-line" />UZHAVAN ACCOUNT</p>
+          <h2 id="auth-title">{authMode === 'signin' ? 'Welcome back' : 'Create your account'}</h2>
+          <p className="auth-description">Keep your farm details and tasks private to your account.</p>
+          <form className="auth-form" onSubmit={(event) => void submitAuthentication(event)}>
+            <label>Email<input type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} autoComplete="email" required /></label>
+            <label>Password<input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'} minLength={6} required /></label>
+            {authError && <p className="inline-error" role="alert">{authError}</p>}
+            <button className="button button-primary" type="submit" disabled={authLoading}>
+              {authLoading ? <LoaderCircle className="spin" size={16} /> : null}
+              {authMode === 'signin' ? 'Sign in with email' : 'Create account'}
+            </button>
+          </form>
+          <div className="auth-divider"><span>or</span></div>
+          <button className="button button-quiet auth-google" type="button" onClick={() => void signInWithGoogle()} disabled={authLoading}>
+            <span className="google-mark">G</span>Continue with Google
+          </button>
+          <button className="auth-switch" type="button" onClick={() => {
+            setAuthMode((mode) => mode === 'signin' ? 'signup' : 'signin')
+            setAuthError('')
+          }}>
+            {authMode === 'signin' ? 'New to Uzhavan? Create an account' : 'Already have an account? Sign in'}
+          </button>
+          {!isFirebaseConfigured && <p className="auth-setup-note">Firebase setup is required before account sign-in can work.</p>}
+        </section>
+      </div>}
+
       <main id="home" className="main-content">
         <section className="page-heading">
           <div>
             <p className="eyebrow"><span className="eyebrow-line" />UZHAVAN FIELD DESK</p>
             <h1>{activeTab === 'home' ? 'Grow with confidence.' : activeTitle}</h1>
-            <p className="page-subtitle">{activeTab === 'home' ? 'Crop insights, local weather, and timely care in one place.' : activeTitle}</p>
+            <p className="page-subtitle">{activeSubtitle}</p>
           </div>
           <span className="crop-count"><Leaf size={15} />{supportedCountLabel}</span>
         </section>
@@ -716,16 +1042,16 @@ function App() {
         {activeTab === 'home' && (
           <section className="dashboard-view">
             <div className="welcome-banner">
-              <div><span className="welcome-label"><Sprout size={14} /> YOUR FIELD, AT A GLANCE</span><h2>{farmProfile.farmName || 'A better day starts in the field.'}</h2><p>{farmProfile.district ? `${farmProfile.district} · ${farmProfile.area || 'Add land size'} ${farmProfile.area ? 'acres' : ''}` : 'Set up your farm profile to get location-aware guidance.'}</p></div>
+              <div><span className="welcome-label"><Sprout size={14} /> TODAY</span><h2>{farmProfile.farmName || 'Welcome to your farm.'}</h2><p>{farmProfile.district ? `${farmProfile.district} · ${farmProfile.area || 'Add land size'} ${farmProfile.area ? 'acres' : ''}` : 'Add your farm details for tailored guidance.'}</p></div>
               <button type="button" className="welcome-action" onClick={() => setActiveTab(farmProfile.soil ? 'weather' : 'farm')}>Plan today <ChevronRight size={16} /></button>
             </div>
             <div className="dashboard-grid">
-              <button type="button" className="dashboard-card scan-card" onClick={() => setActiveTab('scan')}><span className="dashboard-card-icon"><ScanLine size={21} /></span><span className="dashboard-card-label">PLANT HEALTH</span><strong>Check a leaf</strong><small>Identify crop and visible condition</small><ChevronRight className="dashboard-arrow" size={16} /></button>
+              <button type="button" className="dashboard-card scan-card" onClick={() => setActiveTab('scan')}><span className="dashboard-card-icon"><ScanLine size={21} /></span><span className="dashboard-card-label">LEAF HEALTH</span><strong>Scan a leaf</strong><small>Identify crops and see disease precautions</small><ChevronRight className="dashboard-arrow" size={16} /></button>
               <button type="button" className="dashboard-card weather-card" onClick={() => setActiveTab('weather')}><span className="dashboard-card-icon"><CloudSun size={21} /></span><span className="dashboard-card-label">LOCAL FORECAST</span><strong>{weather ? `${Math.round(weather.temperature)}° · ${weatherDescription(weather.code)}` : 'Check your weather'}</strong><small>{weather ? locationName : 'Rain and temperature for your location'}</small><ChevronRight className="dashboard-arrow" size={16} /></button>
-              <button type="button" className="dashboard-card advisor-card" onClick={() => setActiveTab('assistant')}><span className="dashboard-card-icon"><MessageCircle size={21} /></span><span className="dashboard-card-label">FARM ADVISOR</span><strong>Ask a question</strong><small>Voice and text, English or Tamil</small><ChevronRight className="dashboard-arrow" size={16} /></button>
+              <button type="button" className="dashboard-card advisor-card" onClick={() => setActiveTab('assistant')}><span className="dashboard-card-icon"><MessageCircle size={21} /></span><span className="dashboard-card-label">ADVISOR</span><strong>Ask Uzhavan</strong><small>Voice or text, English or Tamil</small><ChevronRight className="dashboard-arrow" size={16} /></button>
               <button type="button" className="dashboard-card task-card" onClick={() => setActiveTab('reminders')}><span className="dashboard-card-icon"><CalendarDays size={21} /></span><span className="dashboard-card-label">UP NEXT</span><strong>{upcomingReminders.length ? `${upcomingReminders.length} farm task${upcomingReminders.length > 1 ? 's' : ''}` : 'No reminders set'}</strong><small>{upcomingReminders[0] ? `${upcomingReminders[0].task} · ${new Date(upcomingReminders[0].due).toLocaleDateString()}` : 'Set an alarm for irrigation or feeding'}</small><ChevronRight className="dashboard-arrow" size={16} /></button>
             </div>
-            <div className="dashboard-lower"><section className="field-note"><div className="section-title"><span className="section-icon"><MapPinned size={18} /></span><div><span className="dashboard-card-label">FIELD PLAN</span><h3>Know your soil. Choose wisely.</h3></div></div><p>Save your land size, soil type, and water access to see a shortlist of crops to discuss with your local agriculture office.</p><button type="button" className="text-action" onClick={() => setActiveTab('farm')}>Set up farm profile <ChevronRight size={15} /></button></section><section className="today-reminders"><div className="section-title"><span className="section-icon warm"><Bell size={18} /></span><div><span className="dashboard-card-label">CARE ROUTINE</span><h3>Small steps, on time.</h3></div></div><p>Use reminders for your own crop calendar. Water and fertilizer timing depend on crop stage, soil, and local conditions.</p><button type="button" className="text-action" onClick={() => setActiveTab('reminders')}>Create reminder <ChevronRight size={15} /></button></section></div>
+            <div className="dashboard-lower"><section className="field-note"><div className="section-title"><span className="section-icon"><MapPinned size={18} /></span><div><span className="dashboard-card-label">FIELD PLAN</span><h3>Crop suggestions for your soil</h3></div></div><p>Save your soil, water access, and field size to get a crop shortlist.</p><button type="button" className="text-action" onClick={() => setActiveTab('farm')}>Add farm details <ChevronRight size={15} /></button></section><section className="today-reminders"><div className="section-title"><span className="section-icon warm"><Bell size={18} /></span><div><span className="dashboard-card-label">TASKS</span><h3>Stay on schedule</h3></div></div><p>Set reminders for irrigation, scouting, and field work.</p><button type="button" className="text-action" onClick={() => setActiveTab('reminders')}>View tasks <ChevronRight size={15} /></button></section></div>
           </section>
         )}
 
@@ -858,6 +1184,17 @@ function App() {
           </aside>
         </section>
 
+        {prediction?.status === 'identified' && prediction.disease && <section className="scan-disease-guidance" aria-live="polite">
+          <div className="scan-disease-heading">
+            <ShieldCheck size={19} />
+            <h2>{t.diseaseResultTitle}</h2>
+          </div>
+          {scanDiseaseLoading && <p>{t.diseaseLoading}</p>}
+          {scanDiseaseError && <p className="inline-error" role="alert"><AlertCircle size={15} />{scanDiseaseError}</p>}
+          {scanDiseaseAnswer && <p className="scan-disease-answer">{scanDiseaseAnswer}</p>}
+          <p className="assistant-disclaimer">{t.diseaseDisclaimer}</p>
+        </section>}
+
         <section className="crop-list" aria-label={t.supported}>
           <div className="crop-list-heading">
             <p className="eyebrow"><span className="eyebrow-line" />{t.supported}</p>
@@ -885,10 +1222,10 @@ function App() {
               {isListening ? t.listening : isSpeaking ? 'Speaking' : 'Talk to Uzhavan'}
             </button>
           </div>
-          <p className={`assistant-mode ${assistantMode === 'generated' ? 'mode-connected' : ''}`}>
-            {assistantMode === 'generated'
-              ? 'Generated answers are grounded in farming notes.'
-              : 'Local guidance mode. Connect an LLM provider for open-ended generated answers.'}
+          <p className={`assistant-mode ${assistantMode === 'local_model' ? 'mode-connected' : ''}`}>
+            {assistantMode === 'local_model'
+              ? 'AI model connected'
+              : 'AI offline · Showing saved guidance'}
           </p>
 
           <div className="chat-box">
@@ -919,27 +1256,27 @@ function App() {
               {chatLoading ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}{t.send}
             </button>
           </div>
-          <p className="assistant-disclaimer">Field guidance is informational. Confirm pesticide and fertilizer use with your local extension service.</p>
+          <p className="assistant-disclaimer">Confirm pesticide and fertilizer use with your local agriculture office.</p>
         </section>}
 
         {activeTab === 'weather' && <section className="tool-page weather-view">
-          <div className="tool-heading"><div><p className="eyebrow"><span className="eyebrow-line" />LIVE CONDITIONS</p><h2>{locationName}</h2><p>Weather forecast from Open-Meteo. Allow location to use your phone’s current position.</p></div><button className="button button-primary" type="button" onClick={() => void loadWeather()} disabled={weatherLoading}>{weatherLoading ? <LoaderCircle size={16} className="spin" /> : <MapPin size={16} />}{weatherLoading ? 'Locating…' : 'Use my location'}</button></div>
+          <div className="tool-heading"><div><p className="eyebrow"><span className="eyebrow-line" />WEATHER</p><h2>{locationName}</h2><p>Enable location for your local forecast.</p></div><button className="button button-primary" type="button" onClick={() => void loadWeather()} disabled={weatherLoading}>{weatherLoading ? <LoaderCircle size={16} className="spin" /> : <MapPin size={16} />}{weatherLoading ? 'Loading…' : 'Use my location'}</button></div>
           {weatherError && <p className="inline-error" role="alert">{weatherError}</p>}
-          {weather ? <><div className="weather-summary"><div className="temperature-readout"><CloudSun size={38} /><div><strong>{Math.round(weather.temperature)}°</strong><span>{weatherDescription(weather.code)}</span></div></div><div className="weather-metric"><Droplets size={18} /><span>Humidity</span><strong>{weather.humidity}%</strong></div><div className="weather-metric"><CloudRain size={18} /><span>Rain now</span><strong>{weather.rain} mm</strong></div><div className="weather-metric"><Wind size={18} /><span>Wind</span><strong>{Math.round(weather.wind)} km/h</strong></div></div><div className="forecast-list">{weather.days.map((day, index) => <div className="forecast-day" key={day.date}><span>{index === 0 ? 'Today' : new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })}</span><CloudSun size={18} /><strong>{Math.round(day.max)}° <span>{Math.round(day.min)}°</span></strong><small><CloudRain size={13} />{day.rain}% rain</small></div>)}</div><p className="weather-note"><ThermometerSun size={16} />Forecast helps with planning; check field moisture before irrigation and follow local alerts for spray decisions.</p></> : <div className="empty-tool"><div className="empty-tool-icon"><CloudSun size={28} /></div><h3>Get the forecast for your field</h3><p>Local temperature, rain chance, wind, and a five-day outlook to help plan field work.</p><button className="button button-primary" type="button" onClick={() => void loadWeather()} disabled={weatherLoading}>{weatherLoading ? 'Loading forecast…' : 'Allow location and load weather'}</button></div>}
+          {weather ? <><div className="weather-summary"><div className="temperature-readout"><CloudSun size={38} /><div><strong>{Math.round(weather.temperature)}°</strong><span>{weatherDescription(weather.code)}</span></div></div><div className="weather-metric"><Droplets size={18} /><span>Humidity</span><strong>{weather.humidity}%</strong></div><div className="weather-metric"><CloudRain size={18} /><span>Rain now</span><strong>{weather.rain} mm</strong></div><div className="weather-metric"><Wind size={18} /><span>Wind</span><strong>{Math.round(weather.wind)} km/h</strong></div></div><div className="forecast-list">{weather.days.map((day, index) => <div className="forecast-day" key={day.date}><span>{index === 0 ? 'Today' : new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })}</span><CloudSun size={18} /><strong>{Math.round(day.max)}° <span>{Math.round(day.min)}°</span></strong><small><CloudRain size={13} />{day.rain}% rain</small></div>)}</div><p className="weather-note"><ThermometerSun size={16} />Check soil moisture before irrigation. Follow local spray advisories.</p></> : <div className="empty-tool"><div className="empty-tool-icon"><CloudSun size={28} /></div><h3>Local forecast</h3><p>Current conditions and a five-day outlook.</p><button className="button button-primary" type="button" onClick={() => void loadWeather()} disabled={weatherLoading}>{weatherLoading ? 'Loading…' : 'Enable location'}</button></div>}
         </section>}
 
         {activeTab === 'farm' && <section className="tool-page farm-view">
-          <div className="tool-heading"><div><p className="eyebrow"><span className="eyebrow-line" />LAND + SOIL</p><h2>Build a field-aware crop shortlist</h2><p>Your details are saved on this device. Recommendations are general guidance, not a guarantee of yield.</p></div><span className="private-tag"><ShieldCheck size={15} />Saved on this device</span></div>
-          <div className="farm-form-grid"><label>Farm or field name<input value={farmProfile.farmName} onChange={(event) => setFarmProfile({ ...farmProfile, farmName: event.target.value })} placeholder="e.g. North field" /></label><label>District / area<input value={farmProfile.district} onChange={(event) => setFarmProfile({ ...farmProfile, district: event.target.value })} placeholder="Your district" /></label><label>Land size (acres)<input inputMode="decimal" type="number" min="0" value={farmProfile.area} onChange={(event) => setFarmProfile({ ...farmProfile, area: event.target.value })} placeholder="e.g. 2.5" /></label><label>Soil type<select value={farmProfile.soil} onChange={(event) => setFarmProfile({ ...farmProfile, soil: event.target.value })}><option value="loam">Loamy</option><option value="clay">Clay</option><option value="black">Black cotton soil</option><option value="red">Red soil</option><option value="sandy">Sandy</option><option value="alluvial">Alluvial</option></select></label><label>Water access<select value={farmProfile.water} onChange={(event) => setFarmProfile({ ...farmProfile, water: event.target.value })}><option value="reliable">Reliable irrigation</option><option value="seasonal">Seasonal / rainfall-led</option><option value="limited">Limited water</option></select></label></div>
-          <button className="button button-primary recommend-button" type="button" onClick={recommendCrops}><Sprout size={17} />Recommend suitable crops</button>
-          {recommendations.length > 0 && <div className="recommendation-results"><div className="section-title"><span className="section-icon"><Sprout size={18} /></span><div><span className="dashboard-card-label">STARTING SHORTLIST</span><h3>Options to explore for {farmProfile.soil} soil</h3></div></div><div className="recommendation-grid">{recommendations.map((id, index) => { const crop = crops.find((item) => item.id === id); const guide = cropGuides.find((item) => item.id === id); return <article className="recommendation-item" key={id}><span>0{index + 1}</span><div><h4>{crop?.en}</h4><p>{guide?.reason}<br /><strong>Irrigation:</strong> {irrigationMethods[id]}</p></div><span className="water-need">{guide?.water} water</span></article> })}</div><p className="recommendation-caveat">Confirm season, local rainfall, seed availability, and market demand with your district agriculture office before planting.</p></div>}
+          <div className="tool-heading"><div><p className="eyebrow"><span className="eyebrow-line" />FARM DETAILS</p><h2>Plan for your farm</h2><p>Add field details for crop suggestions.</p></div><span className="private-tag"><ShieldCheck size={15} />{user ? storageReady ? 'Synced to your account' : 'Syncing…' : 'Saved on this device'}</span></div>
+          <div className="farm-form-grid"><label>Farm name<input disabled={Boolean(user && !storageReady)} value={farmProfile.farmName} onChange={(event) => setFarmProfile({ ...farmProfile, farmName: event.target.value })} placeholder="e.g. North field" /></label><label>District<input disabled={Boolean(user && !storageReady)} value={farmProfile.district} onChange={(event) => setFarmProfile({ ...farmProfile, district: event.target.value })} placeholder="Your district" /></label><label>Area (acres)<input disabled={Boolean(user && !storageReady)} inputMode="decimal" type="number" min="0" value={farmProfile.area} onChange={(event) => setFarmProfile({ ...farmProfile, area: event.target.value })} placeholder="e.g. 2.5" /></label><label>Soil type<select disabled={Boolean(user && !storageReady)} value={farmProfile.soil} onChange={(event) => setFarmProfile({ ...farmProfile, soil: event.target.value })}><option value="loam">Loamy</option><option value="clay">Clay</option><option value="black">Black cotton soil</option><option value="red">Red soil</option><option value="sandy">Sandy</option><option value="alluvial">Alluvial</option></select></label><label>Water access<select disabled={Boolean(user && !storageReady)} value={farmProfile.water} onChange={(event) => setFarmProfile({ ...farmProfile, water: event.target.value })}><option value="reliable">Reliable irrigation</option><option value="seasonal">Seasonal / rainfall-led</option><option value="limited">Limited water</option></select></label></div>
+          <button className="button button-primary recommend-button" type="button" onClick={recommendCrops} disabled={Boolean(user && !storageReady)}><Sprout size={17} />Suggest crops</button>
+          {recommendations.length > 0 && <div className="recommendation-results"><div className="section-title"><span className="section-icon"><Sprout size={18} /></span><div><span className="dashboard-card-label">CROP SUGGESTIONS</span><h3>Options for {farmProfile.soil} soil</h3></div></div><div className="recommendation-grid">{recommendations.map((id, index) => { const crop = crops.find((item) => item.id === id); const guide = cropGuides.find((item) => item.id === id); return <article className="recommendation-item" key={id}><span>0{index + 1}</span><div><h4>{crop?.en}</h4><p>{guide?.reason}<br /><strong>Irrigation:</strong> {irrigationMethods[id]}</p></div><span className="water-need">{guide?.water} water</span></article> })}</div><p className="recommendation-caveat">Confirm the season, water, seed availability, and market locally before planting.</p></div>}
         </section>}
 
         {activeTab === 'reminders' && <section className="tool-page reminders-view">
-          <div className="tool-heading"><div><p className="eyebrow"><span className="eyebrow-line" />FIELD ROUTINE</p><h2>Set a timely farm reminder</h2><p>Reminders are stored on this device. Notifications work while this app is open.</p></div><span className="private-tag"><Bell size={15} />{upcomingReminders.length} upcoming</span></div>
-          <form className="reminder-form" onSubmit={(event) => void addReminder(event)}><label>Crop<select value={reminderCrop} onChange={(event) => setReminderCrop(event.target.value)}>{crops.map((crop) => <option value={crop.id} key={crop.id}>{crop.en}</option>)}</select></label><label>Task<select value={reminderTask} onChange={(event) => setReminderTask(event.target.value)}><option>Water / irrigation</option><option>Fertilizer application</option><option>Field scouting</option><option>Weed control</option><option>Harvest check</option><option>Other field task</option></select></label><label>Time<input type="datetime-local" value={reminderDue} onChange={(event) => setReminderDue(event.target.value)} required /></label><label className="reminder-note">Note (optional)<input value={reminderNote} onChange={(event) => setReminderNote(event.target.value)} placeholder="Growth stage, amount, or field section" /></label><button className="button button-primary" type="submit"><Bell size={16} />Set reminder</button></form>
+          <div className="tool-heading"><div><p className="eyebrow"><span className="eyebrow-line" />FIELD TASKS</p><h2>Plan your next task</h2><p>Set reminders for irrigation, scouting, and more.</p></div><span className="private-tag"><Bell size={15} />{upcomingReminders.length} upcoming</span></div>
+          <form className="reminder-form" onSubmit={(event) => void addReminder(event)}><label>Crop<select disabled={Boolean(user && !storageReady)} value={reminderCrop} onChange={(event) => setReminderCrop(event.target.value)}>{crops.map((crop) => <option value={crop.id} key={crop.id}>{crop.en}</option>)}</select></label><label>Task<select disabled={Boolean(user && !storageReady)} value={reminderTask} onChange={(event) => setReminderTask(event.target.value)}><option>Water / irrigation</option><option>Fertilizer application</option><option>Field scouting</option><option>Weed control</option><option>Harvest check</option><option>Other field task</option></select></label><label>Time<input disabled={Boolean(user && !storageReady)} type="datetime-local" value={reminderDue} onChange={(event) => setReminderDue(event.target.value)} required /></label><label className="reminder-note">Note (optional)<input disabled={Boolean(user && !storageReady)} value={reminderNote} onChange={(event) => setReminderNote(event.target.value)} placeholder="Growth stage, amount, or field section" /></label><button className="button button-primary" type="submit" disabled={Boolean(user && !storageReady)}><Bell size={16} />Set reminder</button></form>
           <p className="care-guidance"><Sprout size={16} />{cropCareGuides[reminderCrop] ?? cropCareGuides.corn_general}</p>
-          <div className="reminder-list"><div className="crop-list-heading"><p className="eyebrow"><span className="eyebrow-line" />YOUR SCHEDULE</p><span>{reminders.length} saved</span></div>{reminders.length ? reminders.slice().sort((first, second) => first.due.localeCompare(second.due)).map((reminder) => <article className={`reminder-item ${reminder.done ? 'is-done' : ''}`} key={reminder.id}><button type="button" className="reminder-check" onClick={() => setReminders((current) => current.map((item) => item.id === reminder.id ? { ...item, done: !item.done } : item))} aria-label={reminder.done ? 'Mark as not done' : 'Mark as done'}>{reminder.done && <Check size={14} />}</button><div className="reminder-details"><strong>{reminder.task} · {reminder.crop}</strong><span><CalendarDays size={13} />{new Date(reminder.due).toLocaleString()}</span>{reminder.note && <p>{reminder.note}</p>}</div><button type="button" className="remove-reminder" onClick={() => setReminders((current) => current.filter((item) => item.id !== reminder.id))} aria-label="Delete reminder"><X size={16} /></button></article>) : <div className="empty-reminders"><CalendarDays size={24} /><p>Your crop-care reminders will appear here.</p></div>}</div>
+          <div className="reminder-list"><div className="crop-list-heading"><p className="eyebrow"><span className="eyebrow-line" />YOUR SCHEDULE</p><span>{reminders.length} saved</span></div>{reminders.length ? reminders.slice().sort((first, second) => first.due.localeCompare(second.due)).map((reminder) => <article className={`reminder-item ${reminder.done ? 'is-done' : ''}`} key={reminder.id}><button type="button" className="reminder-check" disabled={Boolean(user && !storageReady)} onClick={() => void toggleReminder(reminder)} aria-label={reminder.done ? 'Mark as not done' : 'Mark as done'}>{reminder.done && <Check size={14} />}</button><div className="reminder-details"><strong>{reminder.task} · {reminder.crop}</strong><span><CalendarDays size={13} />{new Date(reminder.due).toLocaleString()}</span>{reminder.note && <p>{reminder.note}</p>}</div><button type="button" className="remove-reminder" disabled={Boolean(user && !storageReady)} onClick={() => void deleteReminder(reminder.id)} aria-label="Delete reminder"><X size={16} /></button></article>) : <div className="empty-reminders"><CalendarDays size={24} /><p>Your crop-care reminders will appear here.</p></div>}</div>
           <p className="weather-note"><AlertCircle size={16} />Irrigation and fertilizer schedules depend on crop stage, recent rain, and soil tests. Set reminders from your local crop calendar rather than using a generic date.</p>
         </section>}
       </main>

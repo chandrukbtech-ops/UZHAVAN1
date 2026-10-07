@@ -5,6 +5,7 @@ from urllib.error import HTTPError
 from fastapi.testclient import TestClient
 import numpy as np
 from PIL import Image, ImageDraw
+import pytest
 
 from backend.app import main
 
@@ -14,6 +15,14 @@ LABELS = [
     "rice--healthy", "wheat--healthy", "corn--healthy", "sugarcane--healthy", "cotton--healthy",
     "soybean--healthy", "mustard--healthy", "tomato--healthy", "brinjal--healthy",
 ]
+
+
+@pytest.fixture(autouse=True)
+def prevent_live_ollama_requests(monkeypatch):
+    def unavailable_ollama(request, timeout):
+        raise ConnectionRefusedError("Ollama is not running in the test environment.")
+
+    monkeypatch.setattr(main, "urlopen", unavailable_ollama)
 
 
 class FakeSession:
@@ -72,7 +81,7 @@ def test_agri_chat_answers_tamil_question_in_tamil():
     assert any("\u0b80" <= character <= "\u0bff" for character in response.json()["answer"])
 
 
-def test_agri_chat_uses_configured_llm_and_reports_generated_mode(monkeypatch):
+def test_agri_chat_uses_local_ollama_without_api_key(monkeypatch):
     class FakeResponse:
         def __enter__(self):
             return self
@@ -82,18 +91,17 @@ def test_agri_chat_uses_configured_llm_and_reports_generated_mode(monkeypatch):
 
         def read(self):
             return json.dumps({
-                "choices": [{"message": {"content": "Check the rice root-zone moisture before irrigating."}}],
+                "message": {"content": "Check the rice root-zone moisture before irrigating."},
             }).encode()
 
     captured = {}
 
     def fake_urlopen(request, timeout):
-        captured["authorization"] = request.get_header("Authorization")
+        captured["url"] = request.full_url
         captured["timeout"] = timeout
         captured["payload"] = json.loads(request.data)
         return FakeResponse()
 
-    monkeypatch.setenv("AGRI_LLM_API_KEY", "test-key")
     monkeypatch.setattr(main, "urlopen", fake_urlopen)
 
     response = client.post(
@@ -107,16 +115,66 @@ def test_agri_chat_uses_configured_llm_and_reports_generated_mode(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["answer"] == "Check the rice root-zone moisture before irrigating."
-    assert body["assistant_mode"] == "generated"
-    assert captured["authorization"] == "Bearer test-key"
-    assert captured["timeout"] == 18
-    assert captured["payload"]["model"] == "gemini-2.5-flash"
-    assert captured["payload"]["messages"][-2]["content"] == "I planted last week."
-    assert "Retrieved farming notes:" in captured["payload"]["messages"][-1]["content"]
+    assert body["assistant_mode"] == "local_model"
+    assert captured["timeout"] == 120
+    assert captured["url"] == "http://127.0.0.1:11434/api/chat"
+    assert captured["payload"]["model"] == "qwen2.5:3b"
+    assert captured["payload"]["stream"] is False
+    assert captured["payload"]["messages"][0]["role"] == "system"
+    assert "Uzhavan farming knowledge:" in captured["payload"]["messages"][-1]["content"]
 
 
-def test_agri_chat_falls_back_to_local_notes_when_llm_fails(monkeypatch):
-    monkeypatch.setenv("AGRI_LLM_API_KEY", "test-key")
+def test_agri_chat_sends_unmatched_questions_to_local_model(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "message": {"content": "Salinity can reduce water uptake and delay germination."},
+            }).encode()
+
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data)
+        return FakeResponse()
+
+    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+    question = "How does soil salinity affect seed germination?"
+    response = client.post("/api/agri-chat", json={"question": question})
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Salinity can reduce water uptake and delay germination."
+    assert response.json()["assistant_mode"] == "local_model"
+    assert question in captured["payload"]["messages"][-1]["content"]
+
+
+def test_health_reports_local_model_readiness(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps({"models": [{"name": "qwen2.5:3b"}]}).encode()
+
+    monkeypatch.setattr(main, "urlopen", lambda request, timeout: FakeResponse())
+
+    response = client.get("/api/health")
+
+    assert response.json()["assistant_provider"] == "ollama"
+    assert response.json()["assistant_model"] == "qwen2.5:3b"
+    assert response.json()["llm_ready"] is True
+    assert response.json()["assistant_mode"] == "local_model"
+
+
+def test_agri_chat_falls_back_to_local_notes_when_ollama_fails(monkeypatch):
 
     def fail_urlopen(request, timeout):
         raise TimeoutError("provider timeout")
@@ -135,19 +193,75 @@ def test_agri_chat_falls_back_to_local_notes_when_llm_fails(monkeypatch):
     assert body["source"] == "rice-water"
 
 
-def test_agri_chat_logs_provider_http_error_without_exposing_key(monkeypatch, caplog):
-    api_key = "test-key"
-    monkeypatch.setenv("AGRI_LLM_API_KEY", api_key)
+def test_disease_care_returns_structured_local_model_guidance(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
 
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "message": {"content": "Possible reasons: wet leaves.\n\nPrecautions: improve airflow."},
+            }).encode()
+
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data)
+        return FakeResponse()
+
+    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+    response = client.post(
+        "/api/agri-chat",
+        json={
+            "question": "Crop: tomato. Observed disease or symptoms: yellow spots.",
+            "language": "en",
+            "intent": "disease_care",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["assistant_mode"] == "local_model"
+    assert "do not claim a definite diagnosis" in captured["payload"]["messages"][0]["content"].lower()
+    assert "Ways to reduce further spread" in captured["payload"]["messages"][0]["content"]
+    assert "Do not prescribe pesticide" in captured["payload"]["messages"][0]["content"]
+
+
+def test_disease_care_has_safe_local_fallback_when_ollama_unavailable(monkeypatch):
+    def fail_urlopen(request, timeout):
+        raise TimeoutError("Ollama is offline")
+
+    monkeypatch.setattr(main, "urlopen", fail_urlopen)
+    response = client.post(
+        "/api/agri-chat",
+        json={
+            "question": "Crop: tomato. Observed disease or symptoms: yellow spots.",
+            "language": "en",
+            "intent": "disease_care",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["assistant_mode"] == "local_notes"
+    assert body["source"] == "disease-care"
+    assert "Possible reasons:" in body["answer"]
+    assert "Precautions to take now:" in body["answer"]
+    assert "Ways to reduce further spread:" in body["answer"]
+    assert "What to do next:" in body["answer"]
+    assert "Do not guess or apply pesticide products or doses." in body["answer"]
+
+
+def test_agri_chat_logs_local_ollama_http_error(monkeypatch, caplog):
     def reject_urlopen(request, timeout):
         raise HTTPError(
             request.full_url,
-            403,
-            "Forbidden",
+            404,
+            "Not Found",
             hdrs=None,
-            fp=BytesIO(json.dumps({
-                "error": {"message": f"Key {api_key} is not allowed for this project."},
-            }).encode()),
+            fp=BytesIO(json.dumps({"error": "model not found"}).encode()),
         )
 
     monkeypatch.setattr(main, "urlopen", reject_urlopen)
@@ -159,9 +273,8 @@ def test_agri_chat_logs_provider_http_error_without_exposing_key(monkeypatch, ca
 
     assert response.status_code == 200
     assert response.json()["assistant_mode"] == "local_notes"
-    assert "HTTP 403" in caplog.text
-    assert "[redacted] is not allowed" in caplog.text
-    assert api_key not in caplog.text
+    assert "HTTP 404" in caplog.text
+    assert "model not found" in caplog.text
 
 
 def test_agri_chat_does_not_route_crop_fertilizer_question_to_irrigation():
