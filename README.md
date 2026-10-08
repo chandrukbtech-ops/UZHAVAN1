@@ -83,11 +83,42 @@ prompted; Render passes them to the Docker build so account sign-in is enabled
 in the generated frontend. After Render assigns a public domain, add that domain
 under Firebase Authentication → Settings → Authorized domains.
 
-The Qwen model is not included in the app container. Ollama running on your Mac
-is not reachable from Render, and this project does not include a free hosted
-Ollama server. Until `OLLAMA_HOST` points to a secured Ollama server reachable
-from Render, chat uses the built-in local guidance fallback. Crop analysis, farm,
-and task features remain available.
+The web app and FastAPI API run on Render. To use Qwen without paying for a
+separate model server, Ollama can run on your Mac and connect through a
+Cloudflare Quick Tunnel. This is a demo arrangement, not reliable production
+hosting: the Mac, Ollama, gateway, and tunnel must stay running and online.
+Render's free service can also sleep. Quick Tunnel URLs are temporary and can
+change after a restart.
+
+On the Mac, install Cloudflare Tunnel and start Ollama:
+
+```sh
+brew install cloudflared
+ollama pull qwen2.5:3b
+ollama serve
+```
+
+In another terminal, start the token-protected gateway. Keep the generated token
+private; enter the same value in Render's `OLLAMA_API_KEY` environment variable:
+
+```sh
+export OLLAMA_GATEWAY_TOKEN="$(openssl rand -hex 32)"
+python backend/ollama_gateway.py
+```
+
+In a third terminal, create the temporary HTTPS tunnel:
+
+```sh
+cloudflared tunnel --url http://127.0.0.1:11435
+```
+
+Copy the `https://...trycloudflare.com` URL printed by the command into Render's
+`OLLAMA_HOST` variable, without a path. Set `OLLAMA_API_KEY` in Render to the
+same token used for `OLLAMA_GATEWAY_TOKEN` on the Mac, then redeploy. Do not
+publish port 11434 directly. The gateway only accepts authenticated chat
+requests and forwards them to Ollama on loopback. If the tunnel URL changes,
+update `OLLAMA_HOST` in Render. When Ollama or the tunnel is unreachable, chat
+falls back to the app's built-in local guidance.
 
 ## Crop and leaf analysis
 
@@ -123,12 +154,11 @@ recognition and speech synthesis depend on browser/device support. The app now
 prefers an installed natural-sounding voice for the selected language, but voice
 quality and availability are controlled by the browser and operating system.
 
-The API health response reports `llm_ready` and `assistant_model`. Chat responses
-report `assistant_mode: "local_model"` when Ollama generated the answer, or
-`"local_notes"` when Ollama is unavailable and the built-in notes were used.
-Set `OLLAMA_HOST` if Ollama runs at a different address and `AGRI_LLM_MODEL` if
-you have pulled a different Ollama model. For example, to use another model,
-pull it with Ollama and set `AGRI_LLM_MODEL` before starting the API.
+Chat responses report `assistant_mode: "local_model"` when the configured
+Ollama model generated the answer, or `"local_notes"` when the model is
+unavailable and the built-in notes were used. `OLLAMA_HOST` is the Ollama
+server's base URL, `OLLAMA_API_KEY` is the gateway token, and `AGRI_LLM_MODEL`
+selects a model already pulled in Ollama.
 
 ## Field planning and reminders
 

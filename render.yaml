@@ -21,5 +21,9 @@ services:
         sync: false
       - key: AGRI_LLM_MODEL
         value: qwen2.5:3b
+      - key: OLLAMA_HOST
+        sync: false
+      - key: OLLAMA_API_KEY
+        sync: false
       - key: ONNX_THREADS
         value: "1"
