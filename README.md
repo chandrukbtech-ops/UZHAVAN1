@@ -6,8 +6,31 @@ shortlisting, and saved crop-care reminders.
 
 ## Run the app
 
-On macOS, install the project dependencies, the bundled crop classifier runtime,
-and the local Gemma model with one command:
+### Windows
+
+From PowerShell in the repository root, install the project dependencies, the
+bundled crop classifier runtime, and the local Gemma model:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\setup.ps1
+```
+
+Then start both local app servers:
+
+```powershell
+.\scripts\start.ps1
+```
+
+Open http://127.0.0.1:5173. Keep the PowerShell window open while using the app;
+press Ctrl+C in that window to stop both servers. The automatic Windows setup
+requires WinGet (App Installer). It installs missing Python 3.12, Node.js LTS,
+and Ollama; installs Python and npm packages; and downloads Gemma 3 4B.
+
+### macOS
+
+On macOS, install the project dependencies, the bundled crop classifier
+runtime, and the local Gemma model with one command:
 
 ```sh
 ./scripts/setup.sh
@@ -28,8 +51,10 @@ Start both local app servers:
 Open http://127.0.0.1:5173. Keep the terminal open while using the app; press
 Ctrl+C to stop both servers. The API is available at http://127.0.0.1:8000.
 
-The one-command installer currently supports macOS with Homebrew. On Linux or
-Windows, install Python 3.11+, Node.js 22.12+, npm, and Ollama using the
+The Windows installer requires a supported version of Windows with WinGet
+(included with App Installer). If WinGet is unavailable, install/update App
+Installer from https://aka.ms/getwinget, open a new PowerShell window, then
+retry. On Linux, install Python 3.11+, Node.js 22.12+, npm, and Ollama using the
 platform's supported installers, then install Python packages with
 `python -m pip install -r requirements.txt` and frontend packages with `npm ci`.
 Camera and location require `localhost` or HTTPS and browser
