@@ -46,6 +46,12 @@ AGRI_KNOWLEDGE = [
         "ta": "நீர்ப்பாசனத்திற்கு முன் மேற்பரப்பை மட்டும் அல்லாமல் வேர் பகுதியில் உள்ள ஈரத்தையும் பாருங்கள். மணற்பாங்கான மண் விரைவில் உலரும்; களிமண் மண் நீரை நீண்ட நேரம் வைத்திருக்கும், ஆனால் நீர் தேங்கும் அபாயம் உண்டு. மூடாக்கு ஆவியாதலைக் குறைக்கும்; கனமழைக்குப் பிறகு வடிகாலும் முக்கியம்.",
     },
     {
+        "id": "vegetable-soil-health",
+        "keywords": ["vegetable", "vegetables", "soil", "health", "organic", "compost", "cover", "crop", "rotation", "மண்", "வளம்", "வளத்தை", "காய்கறி", "கம்போஸ்ட்", "சுழற்சி", "மூடாக்கு"],
+        "answer": "For vegetable beds, add clean, mature compost, keep the soil covered with organic mulch or a suitable cover crop between plantings, and rotate plant families where space allows. Avoid working wet soil. Use a soil test before changing fertilizer or pH; avoid fresh manure on crops close to harvest.",
+        "ta": "காய்கறி பாத்திகளில் நன்கு மக்கிய, சுத்தமான கம்போஸ்டைச் சேர்க்கவும். மண்ணை இயற்கை மூடாக்கால் மூடி வையுங்கள். இடமிருந்தால் ஒரே தாவரக் குடும்பப் பயிர்களை ஒரே இடத்தில் தொடர்ந்து பயிரிடாமல் பயிர் சுழற்சி செய்யுங்கள். ஈரமான மண்ணை உழ வேண்டாம். உரம் அல்லது மண்ணின் அமிலத்தன்மையை மாற்றுவதற்கு முன் மண் பரிசோதனை செய்யுங்கள்; அறுவடைக்கு நெருங்கிய பயிர்களுக்கு பச்சைச் சாணம் இட வேண்டாம்.",
+    },
+    {
         "id": "fertilizer-basics", "keywords": ["fertilizer", "fertiliser", "urea", "nitrogen", "nutrient", "compost", "manure", "உரம்", "யூரியா"],
         "answer": "Base fertilizer decisions on a soil test and the crop’s growth stage. Split nitrogen applications reduce losses; do not apply urea onto dry soil or just before heavy rain. Keep fertilizer away from stems and follow the product label and local extension dose rather than guessing a rate.",
         "ta": "மண் பரிசோதனை மற்றும் பயிரின் வளர்ச்சி நிலையை வைத்து உரமிடுங்கள். நைட்ரஜன் உரத்தைப் பிரித்து இடுவது இழப்பைக் குறைக்கும். வறண்ட மண்ணில் அல்லது கனமழைக்கு முன் யூரியா இட வேண்டாம். உரத்தைத் தண்டிலிருந்து விலக்கி வைத்து, தயாரிப்பு லேபிள் மற்றும் உள்ளூர் வேளாண் பரிந்துரையைப் பின்பற்றுங்கள்.",
@@ -57,8 +63,13 @@ AGRI_KNOWLEDGE = [
     },
     {
         "id": "tomato-blight", "keywords": ["tomato", "blight", "spot", "fungus", "leaf", "humidity", "தக்காளி", "கருகல்"],
-        "answer": "Tomato leaf spots and blight can look similar, so a photo and the pattern of spread help distinguish them. Remove badly affected leaves, avoid overhead watering, and improve airflow. Do not reuse the same fungicide repeatedly; confirm the diagnosis with a local extension worker before treatment.",
-        "ta": "தக்காளியில் இலைப்புள்ளி மற்றும் கருகல் அறிகுறிகள் ஒன்றுபோல் தோன்றலாம்; தெளிவான படம் மற்றும் பரவும் விதம் வேறுபாட்டைக் கண்டறிய உதவும். கடுமையாகப் பாதித்த இலைகளை அகற்றி, மேலிருந்து நீர் தெளிப்பதைத் தவிர்த்து காற்றோட்டத்தை மேம்படுத்துங்கள். ஒரே பூஞ்சைக் கொல்லியை மீண்டும் மீண்டும் பயன்படுத்தாமல், சிகிச்சைக்கு முன் உள்ளூர் வேளாண் அலுவலரிடம் உறுதிப்படுத்துங்கள்.",
+        "answer": "Yellow tomato leaf spots can have several causes, including disease, pests, or nutrient stress. Check whether spots are spreading, inspect leaf undersides, and take close-up and whole-plant photos. Avoid wetting leaves and improve airflow. Do not choose a pesticide until the cause is confirmed.",
+        "ta": "தக்காளி இலைகளில் மஞ்சள் புள்ளிகள் நோய், பூச்சி அல்லது ஊட்டச்சத்து அழுத்தம் உள்ளிட்ட பல காரணங்களால் வரலாம். புள்ளிகள் பரவுகிறதா, இலை அடிப்பகுதியில் பூச்சி உள்ளதா என்று பாருங்கள்; நெருக்கமான படத்துடன் முழுச் செடியின் படத்தையும் எடுங்கள். இலைகளை நனைப்பதைத் தவிர்த்து காற்றோட்டத்தை மேம்படுத்துங்கள். காரணம் உறுதியாகும் முன் மருந்தைத் தேர்ந்தெடுக்க வேண்டாம்.",
+    },
+    {
+        "id": "rice-blast", "keywords": ["rice", "paddy", "blast", "neck", "lesion", "fungus", "நெல்", "கருகல்", "நோய்"],
+        "answer": "Rice blast can affect leaves, nodes, or panicles, but leaf symptoms alone do not confirm it. Check for spreading diamond-shaped lesions with pale centres and dark margins, and inspect several plants across the field. Avoid excess nitrogen, keep irrigation and drainage appropriate for the crop stage, and remove heavily affected residues after harvest. Ask a local agricultural extension officer to confirm the disease before using any fungicide; follow only locally registered product labels.",
+        "ta": "நெல் இலை, கணு அல்லது கதிரில் கருகல் நோய் பாதிப்பு இருக்கலாம்; இலை அறிகுறியை மட்டும் வைத்து நோயை உறுதி செய்ய முடியாது. நடுவில் வெளிர் நிறமும் ஓரத்தில் கருமையும் கொண்ட வைர வடிவப் புள்ளிகள் பல செடிகளில் பரவுகிறதா என்று பாருங்கள். அளவுக்கு மீறிய நைட்ரஜன் உரத்தைத் தவிர்த்து, பயிர் நிலைக்கு ஏற்ற நீர்ப்பாசனமும் வடிகாலும் வைத்திருங்கள்; அறுவடைக்குப் பின் கடுமையாகப் பாதித்த பயிர் கழிவுகளை அகற்றுங்கள். பூஞ்சைக் கொல்லி பயன்படுத்தும் முன் உள்ளூர் வேளாண் அலுவலரிடம் நோயை உறுதிப்படுத்தி, உங்கள் பகுதியில் பதிவு செய்யப்பட்ட தயாரிப்பின் லேபிளை மட்டும் பின்பற்றுங்கள்.",
     },
     {
         "id": "wheat-rust", "keywords": ["wheat", "rust", "yellow", "brown", "fungal", "septoria", "கோதுமை", "துரு"],
@@ -97,7 +108,8 @@ TOPIC_KEYWORDS = {
     "fertilizer": {"fertilizer", "fertiliser", "urea", "nitrogen", "nutrient", "compost", "manure", "உரம்", "யூரியா", "சத்து"},
     "pests": {"pest", "insect", "aphid", "caterpillar", "borer", "worm", "spray", "control", "துளைப்பான்", "பூச்சி", "புழு"},
     "soil": {"soil", "moisture", "dry", "drought", "mulch", "மண்", "ஈரம்"},
-    "disease": {"disease", "blight", "spot", "rust", "fungus", "fungal", "curl", "yellow", "brown", "symptom", "நோய்", "கருகல்", "துரு", "மஞ்சள்", "புள்ளி"},
+    "soil_health": {"health", "organic", "compost", "cover", "rotation", "வளம்", "வளத்தை", "கம்போஸ்ட்", "சுழற்சி", "மேம்படுத்த"},
+    "disease": {"disease", "blight", "spot", "rust", "blast", "fungus", "fungal", "mildew", "rot", "wilt", "lesion", "lesions", "scorch", "mosaic", "curl", "yellow", "brown", "symptom", "நோய்", "கருகல்", "துரு", "மஞ்சள்", "புள்ளி", "வாடல்"},
     "planting": {"sowing", "planting", "season", "seed", "rain", "monsoon", "when", "விதை", "பருவம்"},
     "market": {"market", "price", "cost", "sell", "mandi", "விலை", "சந்தை"},
     "pruning": {"prune", "pruning", "branch", "canopy", "கத்தரித்தல்"},
@@ -109,9 +121,11 @@ ENTRY_TOPICS = {
     "rice-water": "irrigation",
     "irrigation-method": "irrigation",
     "soil-water": "soil",
+    "vegetable-soil-health": "soil_health",
     "fertilizer-basics": "fertilizer",
     "pest-scouting": "pests",
     "tomato-blight": "disease",
+    "rice-blast": "disease",
     "wheat-rust": "disease",
     "planting-window": "planting",
     "crop-health": "disease",
@@ -219,13 +233,14 @@ load_model()
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
+    ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
     return {
         "status": "ok",
         "model_ready": _session is not None,
         "supported_crops": sorted({label.split("--", 1)[0] for label in _labels}) if _session is not None else [],
         "detail": _model_error,
         "assistant_mode": (
-            "local_model" if os.getenv("OLLAMA_HOST")
+            "local_model" if ollama_host
             else "generated" if os.getenv("AGRI_LLM_API_KEY")
             else "local_notes"
         ),
@@ -254,6 +269,38 @@ def _find_crop(tokens: set[str]) -> str | None:
     return matches[0] if len(matches) == 1 else None
 
 
+def _agronomy_system_prompt(language: str) -> str:
+    if language == "ta":
+        return (
+            "நீங்கள் உழவன், விவசாயிகளுக்கு உதவும் கவனமான வேளாண் ஆலோசகர். விவசாயம் தொடர்பான கேள்விக்கு "
+            "இயல்பான, தெளிவான, எளிய தமிழில் மட்டும் பதிலளிக்கவும். விவசாயி கேட்ட கேள்விக்கே நேரடியாகப் பதில் "
+            "கூறுங்கள்; தொடர்பில்லாத பொதுவான ஆலோசனைகளைச் சேர்க்க வேண்டாம். கீழே உள்ள குறிப்புகள் கேள்வியுடன் "
+            "நேரடியாகப் பொருந்தினால் மட்டுமே பயன்படுத்துங்கள். பொருந்தும் குறிப்பு இருந்தால், அதிலுள்ள "
+            "வழிமுறைகளை மட்டும் சுருக்கமாகச் சொல்லுங்கள்; குறிப்பில் இல்லாத மருந்து, உரம் அல்லது பயிர் "
+            "நடைமுறையைச் சேர்க்க வேண்டாம். பொருந்தவில்லை என்றால் குறிப்பைப் புறக்கணித்து, "
+            "உறுதியாகத் தெரியாததைத் தெளிவாகச் சொல்லுங்கள். இலை அறிகுறியால் மட்டும் நோயை உறுதி செய்ய வேண்டாம். "
+            "பூச்சிக்கொல்லி அல்லது பூஞ்சைக் கொல்லி அளவை ஊகித்து கூறாதீர்கள்; மருந்து பயன்படுத்துவதற்கு முன் "
+            "உள்ளூர் வேளாண் அலுவலர் மற்றும் தயாரிப்பு லேபிளைச் சரிபார்க்கச் சொல்லுங்கள். வானிலை அல்லது சந்தை "
+            "விலையை நேரடியாகப் பெறாதபோது அதை உண்மையாகச் சொல்லுங்கள். 'குறிப்புகள் சொல்கின்றன' அல்லது "
+            "உங்கள் சிந்தனைச் செயல்முறை என்று கூறாதீர்கள். இரண்டு முதல் நான்கு இயல்பான வாக்கியங்களில் "
+            "பதிலளிக்கவும்; பயனர் கேட்டாலன்றி அதே தகவலைப் பட்டியலாக மீண்டும் கூற வேண்டாம். பயிர், வளர்ச்சி நிலை அல்லது மாவட்டம் முக்கியமாகத் தெரியாவிட்டால் "
+            "ஒரு தெளிவான கேள்வி மட்டும் கேளுங்கள். விவசாயமற்ற கேள்விக்கு சுருக்கமாக விவசாய உதவிக்குத் திருப்புங்கள்."
+        )
+    return (
+        "You are Uzhavan, a careful agricultural field advisor. Reply in clear, natural English and answer "
+        "the farmer's exact question first. Keep the answer focused; do not pad it with generic advice. Use "
+        "retrieved notes only when they directly match both the crop and topic. When a note matches, stay "
+        "within its guidance and do not add products, inputs, or practices that it does not mention. Otherwise ignore them and say "
+        "what is uncertain. Do not diagnose a disease from a text symptom or image label alone. Never invent "
+        "pesticide or fungicide products, doses, weather, or market prices. For treatment, ask the farmer to "
+        "confirm locally and follow a product label. Never mention retrieved notes or reveal your reasoning. "
+        "Use two to four natural sentences; do not repeat the same advice as a separate checklist unless asked. "
+        "Ask one concise clarifying "
+        "question only when crop, growth stage, or district materially changes the advice. Briefly redirect "
+        "non-agricultural questions to farming topics."
+    )
+
+
 def _generate_grounded_answer(
     question: str,
     language: str,
@@ -269,14 +316,7 @@ def _generate_grounded_answer(
         "AGRI_LLM_ENDPOINT",
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
     )
-    language_name = "Tamil" if language == "ta" else "English"
-    system_prompt = (
-        "You are Uzhavan, a careful agricultural field advisor. Answer naturally and specifically in "
-        f"{language_name}. Use the retrieved notes as guidance, not as a script. Explain practical next steps, "
-        "ask for missing crop/stage/location details when needed, and never invent pesticide doses, "
-        "diagnoses, or weather. If uncertain, say what information is needed and recommend local agricultural extension advice. "
-        "Keep the answer concise, warm, and non-repetitive."
-    )
+    system_prompt = _agronomy_system_prompt(language)
 
     is_openai_compatible = "/openai/" in endpoint.lower() or "/chat/completions" in endpoint.lower()
     if is_openai_compatible:
@@ -372,19 +412,12 @@ def _generate_ollama_answer(
     context: str,
     history: list[AgriChatTurn] | None = None,
 ) -> str | None:
-    ollama_host = os.getenv("OLLAMA_HOST", "").rstrip("/")
+    ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
     if not ollama_host:
         return None
 
-    model = os.getenv("AGRI_LLM_MODEL", "qwen2.5:3b")
-    language_name = "Tamil" if language == "ta" else "English"
-    system_prompt = (
-        "You are Uzhavan, a careful agricultural field advisor. Answer naturally and specifically in "
-        f"{language_name}. Use the retrieved notes as guidance, not as a script. Explain practical next steps, "
-        "ask for missing crop, stage, or location details when needed, and never invent pesticide doses, "
-        "diagnoses, or weather. If uncertain, say what information is needed and recommend local agricultural "
-        "extension advice. Keep the answer concise, warm, and non-repetitive."
-    )
+    model = os.getenv("AGRI_LLM_MODEL", "gemma3:4b")
+    system_prompt = _agronomy_system_prompt(language)
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(
         {"role": turn.role, "content": turn.content[:2000]}
@@ -398,7 +431,7 @@ def _generate_ollama_answer(
         "model": model,
         "stream": False,
         "messages": messages,
-        "options": {"temperature": 0.45, "num_predict": 280},
+        "options": {"temperature": 0.2, "num_predict": 420, "num_ctx": 8192},
     }).encode("utf-8")
     headers = {"Content-Type": "application/json"}
     gateway_token = os.getenv("OLLAMA_API_KEY")
@@ -432,7 +465,7 @@ def _generate_configured_answer(
     context: str,
     history: list[AgriChatTurn] | None = None,
 ) -> str | None:
-    if os.getenv("OLLAMA_HOST"):
+    if os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/"):
         return _generate_ollama_answer(question, language, context, history)
     return _generate_grounded_answer(question, language, context, history)
 
@@ -479,10 +512,18 @@ def _retrieve_farm_answer(
             secondary_answer = second["ta"] if language == "ta" else second["answer"]
             answer = f"{answer}\n\nAlso relevant: {secondary_answer}" if language != "ta" else f"{answer}\n\nமேலும்: {secondary_answer}"
             retrieved_context = f"{retrieved_context}\n\n{secondary_answer}"
-        generated_answer = _generate_configured_answer(question, language, retrieved_context, history)
+        generated_answer = (
+            None
+            if best_match["id"] == "pesticide-safety"
+            else _generate_configured_answer(question, language, retrieved_context, history)
+        )
         if generated_answer:
             answer = generated_answer
-            assistant_mode = "local_model" if os.getenv("OLLAMA_HOST") else "generated"
+            assistant_mode = (
+                "local_model"
+                if os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+                else "generated"
+            )
         else:
             assistant_mode = "local_notes"
     else:
@@ -493,7 +534,11 @@ def _retrieve_farm_answer(
         generated_answer = _generate_configured_answer(question, language, context, history)
         if generated_answer:
             answer = generated_answer
-            assistant_mode = "local_model" if os.getenv("OLLAMA_HOST") else "generated"
+            assistant_mode = (
+                "local_model"
+                if os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+                else "generated"
+            )
         elif "market" in requested_topics:
             assistant_mode = "local_notes"
             answer = (

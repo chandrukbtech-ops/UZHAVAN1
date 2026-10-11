@@ -20,7 +20,7 @@ services:
       - key: VITE_FIREBASE_APP_ID
         sync: false
       - key: AGRI_LLM_MODEL
-        value: qwen2.5:3b
+        value: gemma3:4b
       - key: OLLAMA_HOST
         sync: false
       - key: OLLAMA_API_KEY

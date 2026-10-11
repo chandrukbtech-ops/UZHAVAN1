@@ -17,7 +17,7 @@ ollama serve
 In another terminal, download the local chat model:
 
 ```sh
-ollama pull qwen2.5:3b
+ollama pull gemma3:4b
 ```
 
 Then start the API:
@@ -94,7 +94,7 @@ On the Mac, install Cloudflare Tunnel and start Ollama:
 
 ```sh
 brew install cloudflared
-ollama pull qwen2.5:3b
+ollama pull gemma3:4b
 ollama serve
 ```
 
@@ -141,15 +141,17 @@ Public validation results do not guarantee performance on local field photos.
 
 ## Farm assistant
 
-The assistant runs the open-weight `qwen2.5:3b` model locally through Ollama; it
-does not require a Gemini key or send chat prompts to a cloud LLM. The model is
-pre-trained, not trained by this project. Uzhavan adds its own bilingual farming
-notes from `backend/app/main.py` as context to answers. Keep those notes accurate
-and add reviewed local guidance there as needed. Tamil questions request Tamil
-answers, though quality depends on the model. Disease precautions are shown
-directly after an identified leaf condition. Advice describes possible causes
-and safer prevention steps; it does
-not confirm a diagnosis or prescribe pesticide doses. Browser speech
+The assistant runs the pre-trained `gemma3:4b` model locally through Ollama;
+download it with `ollama pull gemma3:4b`. It does not require a Gemini key or
+send chat prompts to a cloud LLM. The model is not fine-tuned by this project.
+Uzhavan adds reviewed bilingual farming notes from `backend/app/main.py` as
+context and uses crop/topic matching to keep that context relevant. The chat
+prompt requests focused English or Tamil answers and discourages generic
+filler. Quality still depends on the model and the accuracy/coverage of reviewed
+notes. Disease
+precautions are shown directly after an identified leaf condition. Advice
+describes possible causes and safer prevention steps; it does not confirm a
+diagnosis or prescribe pesticide doses. Browser speech
 recognition and speech synthesis depend on browser/device support. The app now
 prefers an installed natural-sounding voice for the selected language, but voice
 quality and availability are controlled by the browser and operating system.
@@ -157,8 +159,7 @@ quality and availability are controlled by the browser and operating system.
 Chat responses report `assistant_mode: "local_model"` when the configured
 Ollama model generated the answer, or `"local_notes"` when the model is
 unavailable and the built-in notes were used. `OLLAMA_HOST` is the Ollama
-server's base URL, `OLLAMA_API_KEY` is the gateway token, and `AGRI_LLM_MODEL`
-selects a model already pulled in Ollama.
+server's base URL, `OLLAMA_API_KEY` is the gateway token, and `AGRI_LLM_MODEL` selects a model already pulled in Ollama.
 
 ## Field planning and reminders
 

@@ -2,6 +2,7 @@ from io import BytesIO
 import json
 from urllib.error import HTTPError
 
+import pytest
 from fastapi.testclient import TestClient
 import numpy as np
 from PIL import Image, ImageDraw
@@ -14,6 +15,11 @@ LABELS = [
     "rice--healthy", "wheat--healthy", "corn--healthy", "sugarcane--healthy", "cotton--healthy",
     "soybean--healthy", "mustard--healthy", "tomato--healthy", "brinjal--healthy",
 ]
+
+
+@pytest.fixture(autouse=True)
+def keep_tests_off_live_ollama(monkeypatch):
+    monkeypatch.setenv("OLLAMA_HOST", "")
 
 
 class FakeSession:
@@ -94,6 +100,7 @@ def test_agri_chat_uses_configured_llm_and_reports_generated_mode(monkeypatch):
         return FakeResponse()
 
     monkeypatch.setenv("AGRI_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("OLLAMA_HOST", "")
     monkeypatch.setattr(main, "urlopen", fake_urlopen)
 
     response = client.post(
@@ -159,14 +166,176 @@ def test_agri_chat_uses_authenticated_remote_ollama_without_cloud_api_key(monkey
     assert captured["url"] == "https://example.trycloudflare.com/api/chat"
     assert captured["timeout"] == 120
     assert captured["token"] == "gateway-test-token"
-    assert captured["payload"]["model"] == "qwen2.5:3b"
+    assert captured["payload"]["model"] == "gemma3:4b"
+    assert "think" not in captured["payload"]
+    assert captured["payload"]["options"]["temperature"] == 0.2
     assert captured["payload"]["stream"] is False
     assert captured["payload"]["messages"][-1]["role"] == "user"
     assert "Retrieved farming notes:" in captured["payload"]["messages"][-1]["content"]
 
 
+def test_rice_blast_question_uses_disease_notes_not_irrigation(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "message": {"content": "Check several plants for spreading lesions and confirm locally."},
+            }).encode()
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data)
+        return FakeResponse()
+
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+
+    response = client.post(
+        "/api/agri-chat",
+        json={"question": "How do I manage rice blast in paddy?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "rice-blast"
+    prompt = captured["payload"]["messages"][-1]["content"].lower()
+    assert "rice blast can affect leaves" in prompt
+    assert "rice nursery" not in prompt
+
+
+def test_vegetable_soil_health_question_uses_specific_guidance(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "message": {"content": "Add mature compost and rotate plant families."},
+            }).encode()
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data)
+        return FakeResponse()
+
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+
+    response = client.post(
+        "/api/agri-chat",
+        json={"question": "How can I improve soil health for vegetables?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "vegetable-soil-health"
+    prompt = captured["payload"]["messages"][-1]["content"]
+    assert "clean, mature compost" in prompt
+    assert "soil test" in prompt
+
+
+def test_tamil_vegetable_soil_health_question_uses_specific_guidance(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "message": {"content": "மக்கிய கம்போஸ்ட் சேர்த்து மண் பரிசோதனை செய்யுங்கள்."},
+            }).encode()
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data)
+        return FakeResponse()
+
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+
+    response = client.post(
+        "/api/agri-chat",
+        json={"question": "காய்கறி மண் வளத்தை எப்படி மேம்படுத்தலாம்?", "language": "ta"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "vegetable-soil-health"
+    prompt = captured["payload"]["messages"][-1]["content"]
+    assert "நன்கு மக்கிய" in prompt
+    assert "சுத்தமான கம்போஸ்டை" in prompt
+    assert "மண் பரிசோதனை" in prompt
+
+
+def test_pesticide_dose_question_uses_reviewed_safety_note_without_llm(monkeypatch):
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+
+    def fail_if_model_called(request, timeout):
+        raise AssertionError("Pesticide-dose questions must use reviewed safety guidance.")
+
+    monkeypatch.setattr(main, "urlopen", fail_if_model_called)
+
+    response = client.post(
+        "/api/agri-chat",
+        json={"question": "What dose of pesticide should I spray on my crop?"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "pesticide-safety"
+    assert body["assistant_mode"] == "local_notes"
+    assert "I shouldn’t guess a pesticide" in body["answer"]
+    assert "label" in body["answer"]
+
+
+def test_tamil_chat_prompt_requests_clear_tamil_from_local_model(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "message": {"content": "நெல் வயலில் பல செடிகளைப் பார்த்து அறிகுறி பரவுகிறதா கவனியுங்கள்."},
+            }).encode()
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data)
+        return FakeResponse()
+
+    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    monkeypatch.setattr(main, "urlopen", fake_urlopen)
+
+    response = client.post(
+        "/api/agri-chat",
+        json={"question": "நெல் கருகல் நோயை எப்படி கட்டுப்படுத்தலாம்?", "language": "ta"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "rice-blast"
+    system_prompt = captured["payload"]["messages"][0]["content"]
+    assert "இயல்பான, தெளிவான, எளிய தமிழில் மட்டும்" in system_prompt
+    assert captured["payload"]["model"] == "gemma3:4b"
+    assert "think" not in captured["payload"]
+
+
 def test_agri_chat_falls_back_to_local_notes_when_llm_fails(monkeypatch):
     monkeypatch.setenv("AGRI_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("OLLAMA_HOST", "")
 
     def fail_urlopen(request, timeout):
         raise TimeoutError("provider timeout")
@@ -193,9 +362,18 @@ def test_health_reports_remote_ollama_mode(monkeypatch):
     assert response.json()["assistant_mode"] == "local_model"
 
 
+def test_health_defaults_to_local_ollama(monkeypatch):
+    monkeypatch.delenv("OLLAMA_HOST", raising=False)
+
+    response = client.get("/api/health")
+
+    assert response.json()["assistant_mode"] == "local_model"
+
+
 def test_agri_chat_logs_provider_http_error_without_exposing_key(monkeypatch, caplog):
     api_key = "test-key"
     monkeypatch.setenv("AGRI_LLM_API_KEY", api_key)
+    monkeypatch.setenv("OLLAMA_HOST", "")
 
     def reject_urlopen(request, timeout):
         raise HTTPError(
