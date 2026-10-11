@@ -6,41 +6,42 @@ shortlisting, and saved crop-care reminders.
 
 ## Run the app
 
-Install and start Ollama on the same computer as the API. On macOS with
-Homebrew:
+On macOS, install the project dependencies, the bundled crop classifier runtime,
+and the local Gemma model with one command:
 
 ```sh
-brew install ollama
-ollama serve
+./scripts/setup.sh
 ```
 
-In another terminal, download the local chat model:
+The setup script uses Homebrew to install missing Python, Node.js, or Ollama
+packages; creates `.venv`; installs Python packages from the root
+`requirements.txt`; runs `npm ci`; verifies the checked-in crop model; starts
+Ollama if needed; and downloads `gemma3:4b`. Ollama model weights are several
+gigabytes and are downloaded separately from GitHub.
+
+Start both local app servers:
 
 ```sh
-ollama pull gemma3:4b
+./scripts/start.sh
 ```
 
-Then start the API:
+Open http://127.0.0.1:5173. Keep the terminal open while using the app; press
+Ctrl+C to stop both servers. The API is available at http://127.0.0.1:8000.
 
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r backend/requirements.txt
-uvicorn backend.app.main:app --reload --port 8000
-```
-
-Start the web app in another terminal:
-
-```sh
-npm install
-npm run dev -- --host 0.0.0.0
-```
-
-Open the Vite URL. Camera and location require `localhost` or HTTPS and browser
+The one-command installer currently supports macOS with Homebrew. On Linux or
+Windows, install Python 3.11+, Node.js 22.12+, npm, and Ollama using the
+platform's supported installers, then install Python packages with
+`python -m pip install -r requirements.txt` and frontend packages with `npm ci`.
+Camera and location require `localhost` or HTTPS and browser
 permission. Weather comes from Open-Meteo. Without an account, farm profiles and
 reminders stay in this browser. Sign in to sync them privately with Firebase.
 Browser notifications are best-effort while the app is open, not a background
 alarm service.
+
+Firebase sign-in and cloud sync require credentials for the customer's Firebase
+project. Setup creates `.env.local` with blank example values and never
+generates or shares Firebase credentials. The rest of the app can be used
+without configuring Firebase.
 
 ## Firebase accounts and sync
 
@@ -49,8 +50,8 @@ upload leaf photos, chat history, or weather data to Firebase. A farm profile us
 one document and each task uses one document under that account. Signed-out data
 remains in browser storage.
 
-The Firebase web settings are read from `.env.local`; copy `.env.example` and fill
-in the project values. Restart Vite after changing environment settings.
+The Firebase web settings are read from `.env.local`; fill in the project values
+to enable sign-in and sync. Restart Vite after changing environment settings.
 The Firebase SDK is split from the main app bundle and excluded from the offline
 app-shell cache; cloud sign-in and sync need a network connection when that
 chunk is not already cached by the browser.
@@ -137,7 +138,11 @@ python ml/train.py --data-dir ml/data --output-dir backend/models
 ```
 
 See [ml/data/README.md](ml/data/README.md) for dataset sources and limitations.
-Public validation results do not guarantee performance on local field photos.
+The checked-in ONNX crop classifier is used directly by the app; ordinary setup
+does not download training images or retrain it. To retrain, install
+`ml/requirements.txt`, prepare the separately sourced datasets as described in
+[ml/data/README.md](ml/data/README.md), then run the training command below.
+Training data is not included in Git.
 
 ## Farm assistant
 
